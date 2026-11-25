@@ -1,0 +1,290 @@
+BUDCAD 2.3 — ЗАДАЧА ДЛЯ CLAUDE CODE (КП4.1)
+Код запроса: REQ-001-R40-1-CAPDIAG
+ГВР: файл задачи записан в репозиторий https://github.com/vladimirbva/Temp (ветка main),
+путь: BUDcad/KP41_R40-1_CAPDIAG_req001.txt (папка BUDcad в корне ГВР).
+Дата: 26.11.2026. База: 2.3.0-r40 (= r39b, full_code sha1 41f169f8aea01afe00c48b2085a110d1fc873753).
+Тема: диагностика решателя — CAPDIAG до r.Warnings + факты ёмкости узла.
+
+=== ОПИСАНИЕ ПРОЕКТА (С НАЧАЛА) ===
+BUDcad 2.3 — десктопный гидравлический/PVT симулятор технологических схем (WinForms, .NET 8, C#).
+Пользователь рисует схему: сосуды-ёмкости, терминалы (границы сети), трубы/связи, насосы, арматура.
+Каждый шаг времени («тик», dt = 1 с) состоит из двух фаз:
+1) ГИДРАВЛИЧЕСКАЯ СЕТЬ: HydraulicEngine.BuildNetwork строит NetworkSpec (узлы — штуцеры ёмкостей и
+   границы терминалов; рёбра — связи с трубным законом q = sign(dpNet)·sqrt(|dpNet|/R), насосы —
+   квадратичная парабола с кавитационной рампой/NPSH, обратные клапаны, ребро-водослив R38);
+   далее HydraulicEngine.Solve решает сеть ПО ФРАГМЕНТАМ связности: для каждого фрагмента узлов
+   вызывается GgaSolver.Solve (GGA — градиентный гидравлический алгоритм: узловые балансы расходов
+   + рёберные законы, итерации, невязка scaledResidual). Результат — HydraulicResult: Nodes/Edges
+   (P бар, Q м3/с), Warnings, Errors, Converged, ScaledResidual, MaxImbalanceRel и т.д.
+2) ЯЧЕЙКИ-ЁМКОСТИ (CapacityCells, фазная динамика): моли по фазам (газ/УВ-жидкость/вода/пар подушки),
+   уровень, PVT-пересчёт давления.
+СОГЛАСОВАНИЕ сеть↔ёмкость (ключевая механика R35-б): каждый подключённый штуцер ёмкости — ВНУТРЕННИЙ
+узел сети с ЁМКОСТНЫМ ЧЛЕНОМ C_i (податливость: C_i = vGas/pGas + vLiq·β_жидк, делённая по штюцерам;
+в GgaSolver — диагональный член capG = C_i/dt в матрице и сток capG·(P−P0) в балансе; P0 — засев
+initP = подушка + гидростатический столб через HydraulicEngine.HydrostaticP).
+АУДИТ согласования (Э12-усиление, R38): для подключённых штюцеров P сети узла обязана совпадать с
+гидростатикой ячейки в допуске 0.05 бара (тест R38OverflowTests.R38_E12_DynamicPadNetworkSync).
+
+ИСТОРИЯ СОКРАЩЁННО (актуальное):
+• R37: честный якобиан — EdgeEval, единая оценка ребра (q, g, dQ/dpIn); Э13 (FD-сверка якобиана),
+  Э14 (сходимость) — зелёные.
+• R38: ребро-водослив; К2: перезапись P узла гидростатикой снята для подключённых штюцеров —
+  вскрылся дефект: «сеть тянет узлы ёмкости ниже ячейки» (Э15: узел кромки уходит в −0.72 бара;
+  Э12: P сети 1.137 бар против гидростатики 0.19 бар). Полный пакет 447/450 ×2.
+• R39-2 (последняя сборка r39b): Р-10 решён владельцем = В1 — кавитационный разрыв сифона через
+  гладкое β-размыкание в EdgeEval (β = 0.5·(1+tanh(2·(PsatPa−P_hi)/1000)), q/G/WeirQ гасятся (1−β),
+  книга прайма с гистерезисом); потенциал водослива без лага; флаг водослива по фактическому расходу.
+  Целевой прогон: 23 passed / 1 failed (R38_E12_DynamicPadNetworkSync — дефект R38) / 1 skipped.
+• TEMP-DIAG R39-2 (ВРЕМЕННО, сносится при чистке R40): тестовые поля R39node/R39edge/R39cell;
+  WeirQPotDiag/UnprimedDiag/BetaDiag/PHiDiag/PsatDiag/BetaAppliedDiag в HydraulicEdge;
+  CAPDIAG-строки в diagnostics решателя (GgaSolver.cs, строки ~1029–1035).
+• ТЕКУЩИЙ ФАКТ (тик 1 сцены Э12, R39-2): resid = 1.2 (ScaledResidual) — решатель НЕ СОШЁЛСЯ;
+  imb = 0 (метрика MaxImbalanceRel не учитывает ёмкостный сток); Q рёбер согласованы (0.1005 м3/с
+  по dpNet = 81 620 Па, R = 8.08e6); P узла притока 101 = 1.137 бар; capP0 = 0.1872 бар;
+  ФАКТИЧЕСКИЙ capG узла притока по балансу = 1.07e-6 м3/(с·Па) (C_i факт ≈ 0.106 м3/бар) против
+  ВЫЧИСЛЕННОГО C_i = 21.3 м3/бар (BuildNetwork: vGas/pGas + vLiq·5e-5, /Nozzles.Count) — РАЗНИЦА ×200,
+  причина НЕ установлена.
+• ВАЖНО о CAPDIAG: в r39b CAPDIAG уже есть в GgaSolver.cs (безусловный при capG[i] > 0) и перекладка
+  diag → res.Warnings уже есть (HydraulicEngine.cs, строка ~2644: foreach (var d in diag)
+  res.Warnings.Add(d);). Но фактический прогон Э12 ПОСЛЕ добавления CAPDIAG НЕ ВЫПОЛНЯЛСЯ (шаги хода
+  R39-2 исчерпаны) — то, что r.Warnings пуст, подтверждено только на сборке ДО патча CAPDIAG.
+
+=== ЗАДАЧА R40-1 (ровно один шаг, без соседних правок) ===
+Цель: гарантированно снять фактические ёмкостные параметры узлов в прогоне теста Э12 —
+чтобы в r.Warnings каждого тика сцены присутствовали CAPDIAG-строки с фактами.
+1) РЕВИЗИЯ ЦЕПИ ДИАГНОСТИКИ (по коду, без прогона): проверь по приведённым листингам, что
+   CAPDIAG-строки из GgaSolver.Solve гарантированно попадают в HydraulicResult.Warnings, который
+   возвращает HydraulicEngine.SimulateTick (его и читает тест Э12: r.Warnings). Особое внимание:
+   (a) не теряются ли diag при ветке «boundaryCount == 1 && !hasSource» (застой, continue — там
+   GgaSolver не вызывается; Э12 имеет 2 границы — ветка не сработает, но проверь);
+   (b) не обнуляются ли Warnings результата где-то после перекладки (SimulateTick/копии результата);
+   (c) вызывается ли Solve в SimulateTick ровно один раз и возвращается ли именно тот res, в который
+   добавлены diag (строка ~1041: var result = Solve(spec, settings, objects, state, dynTick);).
+   Если разрыв найден — минимально почини (комментарий «R40-1»).
+2) РАСШИРЕНИЕ CAPDIAG (единственная содержательная правка): в строку CAPDIAG добавь поля
+   фактического узлового стока через capG и расхождения с расчётным значением:
+   CAPDIAG: узел <Key> C_i=<спека> capG=<факт в матрице> capGeff=<из решения, если доступно> capP0=<бар>
+   P=<бар> useCap=<флаг> dt=<с> — плюс строка с РАСЧЁТНЫМ C_i из BuildNetwork (vGas/pGas + vLiq·5e-5,
+   /Nozzles.Count) для узлов ёмкости: CAPDISP: узел <Key> Ccalc=<...> vGas=... pGas=... vLiq=... nNoz=...
+   (значения можно добавить отдельным TEMP-DIAG-циклом там, где spec уже собран: BuildNetwork или
+   начало Solve — решение на твоё усмотрение, главное: факты расчётного C_i и фактического capG в
+   r.Warnings тика Э12). Клампы/сан-чеки не менять.
+3) ФОРМАТ ПРАВОК: только изменённые файлы целиком; комментарии-маркеры «R40-1» на каждой правке;
+   БЕЗ изменения сигнатур публичных методов, БЕЗ переименований, БЕЗ форматирования нетронутых строк.
+4) Есть вопрос для Владельца: нет вопросов. Если ты готов принять за него решение, и оно однозначное,
+   то Владелец согласовал это и просит принять решение тебя.
+5) Не выполнять: прогоны тестов (у тебя нет сборки), правки других файлов, изменения эталонов,
+   чистку TEMP-DIAG R39-2 (официальная чистка — отдельная задача R40-2), смену нумерации версии.
+ПРИМЕЧАНИЕ: листинги ниже — ключевые фрагменты (не все 179 файлов). Если для однозначной правки
+нужен соседний контекст — не guessing: перечисли точные имена файлов и что нужно, ассистент вышлет
+в следующем запросе.
+
+=== ФОРМАТ ОТВЕТА ===
+1) Краткий разбор: жива ли цепь diag → r.Warnings (по пунктам a/b/c), что нашёл.
+2) Полный текст КАЖДОГО изменённого файла (целиком, с маркерами R40-1).
+3) Список несделанного/неопределённого — честно.
+
+=== ЛИСТИНГ 1/6: BUDcad_2.2/GgaSolver.cs — строки 1015–1053 (хвост Solve: TEMP-DIAG и CAPDIAG) ===
+                    if (e.WeirSign != 0) { he.WeirQ = (Math.Abs(Q[m]) < minFlow) ? 0.0 : weirShare38[m]; he.WeirGate = gateArr38[m]; } // R38 (В.3)
+                    he.WeirQPotDiag = e.WeirQPot; he.UnprimedDiag = e.Unprimed; he.BetaDiag = betaArr39[m]; he.PHiDiag = pHiArr39[m]; he.PsatDiag = psatArr39[m]; he.BetaAppliedDiag = appliedArr39[m]; // TEMP-DIAG R39-2
+                }
+            }
+
+            for (int i = 0; i < N; i++)
+            {
+                if (outNodes.TryGetValue(nodeIdx[i], out var hn))
+                {
+                    if (specNodes[nodeIdx[i]].IsBoundary)
+                        hn.Pressure = specNodes[nodeIdx[i]].BoundaryP;
+                    else
+                        hn.Pressure = P[i] / 1e5;
+                }
+            }
+
+            // TEMP-DIAG R39-2: фактические ёмкостные параметры узлов — в diagnostics (сносится при чистке R40)
+            for (int i = 0; i < N; i++)
+                if (capG[i] > 0)
+                    diagnostics.Add($"CAPDIAG: узел {specNodes[nodeIdx[i]].Key} C_i={specNodes[nodeIdx[i]].CapacityM3PerBar:0.######} capG={capG[i]:0.##e0} capP0={capP0[i] / 1e5:0.######} P={P[i] / 1e5:0.######} useCap={useCapacity} dt={settings.TimeStepSeconds:0.###}");
+            bool minOk = true;
+            foreach (var k in innerIdx)
+                if (P[k] / 1e5 < settings.MinPressureBar)
+                {
+                    minOk = false;
+                    diagnostics.Add($"Узел {specNodes[k].Key}: P = {P[k] / 1e5:0.####} бар < MinPressureBar.");
+                }
+
+            if (!converged && diagnostics.Count == 0)
+                diagnostics.Add($"GGA: не сошлось за {settings.MaxIterations} итераций, невязка {scaledResidual:0.###e0}.");
+
+            // Честный статус: res.Converged = converged && minOk (ревью v21-B1). Раньше всегда true —
+            // статус «сошёлся» в строке состояния врал. Симуляция не падает: старт разрешён в MainForm (v21-C),
+            // а решатель продолжает попытки на каждом тике.
+            return converged && minOk;
+=== ЛИСТИНГ 2/6: BUDcad_2.2/HydraulicEngine.cs — строки 1030–1046 (SimulateTick: кэш spec и вызов Solve) ===
+                var swBuild18 = System.Diagnostics.Stopwatch.StartNew();
+                spec = BuildNetwork(objects, connections, settings, res);
+                swBuild18.Stop();
+                BuildMsTotal += swBuild18.Elapsed.TotalMilliseconds; NetworkBuilds++;
+                if (res.Errors.Count > 0) return res;
+                state.CachedSpec = spec; state.CachedFingerprint = fp; state.HxSkippedCache = res.HxSkipped;
+                dynTick = NetworkDynState.From(spec); state.CachedDyn = dynTick; // v65 (этап 3)
+            }
+
+            // v84 (КП2.1-В2): снимок масс ёмкостей ДО шага — критерий равновесия меряет изменение за тик.
+            var capBeforeV2 = CapacitySnapshot(objects);
+            var result = Solve(spec, settings, objects, state, dynTick);
+            result.HxSkipped = res.HxSkipped.Count > 0 ? res.HxSkipped : state.HxSkippedCache;
+            foreach (var w in res.Warnings) if (!result.Warnings.Contains(w)) result.Warnings.Add(w);
+=== ЛИСТИНГ 3/6: BUDcad_2.2/HydraulicEngine.cs — строки 2600–2650 (Solve: застой и перекладка diag) ===
+                if (boundaryCount[comp] == 1 && !hasSource)
+                {
+                    double pB = 0;
+                    foreach (var k in nodeIdx) if (spec.Nodes[k].IsBoundary) pB = spec.Nodes[k].BoundaryP;
+                    foreach (var ni in nodeIdx)
+                    {
+                        res.Nodes[ni].Pressure = pB;
+                        res.Nodes[ni].Imbalance = 0;
+                    }
+                    foreach (var ei in edgeIdx)
+                    {
+                        res.Edges[ei].Q = 0;
+                        res.Edges[ei].Dp = 0;
+                        res.Edges[ei].Mode = "застой";
+                    }
+                    continue;
+                }
+
+                int iters = 0; double resid = 0; var diag = new List<string>();
+                var outN = new Dictionary<int, HydraulicNode>(); foreach (var k in nodeIdx) outN[k] = res.Nodes[k];
+                var outE = new Dictionary<int, HydraulicEdge>(); foreach (var ei in edgeIdx) outE[res.Edges[ei].ConnId] = res.Edges[ei];
+
+                // ВЫЗОВ GGA РЕШАТЕЛЯ
+                bool ok = GgaSolver.Solve(nodeIdx, edgeIdx, spec.Nodes, spec.Edges, settings, outN, outE, diag, ref iters, ref resid, initPBar, initQ, dyn); // v65 (п.106, этап 3): решатель на живом слое dyn
+                // w48 (А3, разбор Димы 19.11): сан-чек узловых P — «сепаратор 13083 бар, дренаж
+                // 39234 бар» из вырожденного старта не должен жить в сети и выносках
+                foreach (var niW48 in nodeIdx)
+                {
+                    var nW48 = outN[niW48];
+                    if (!double.IsNaN(nW48.Pressure) && nW48.Pressure > 300.0)
+                    {
+                        res.Warnings.Add("P клампирован (сан-чек w48): узел#" + niW48 + ": " + nW48.Pressure.ToString("0.#") + " бар -> 300 бар");
+                        nW48.Pressure = 300.0;
+                    }
+                    else if (double.IsNaN(nW48.Pressure))
+                    {
+                        res.Warnings.Add("P=NaN (сан-чек w48): узел#" + niW48);
+                        nW48.Pressure = 1.0;
+                    }
+                }
+
+                totalIters = Math.Max(totalIters, iters); res.ScaledResidual = Math.Max(res.ScaledResidual, resid);
+                foreach (var d in diag) res.Warnings.Add(d); if (!ok) allConverged = false;
+=== ЛИСТИНГ 4/6: BUDcad_2.2/HydraulicEngine.cs — строки 2650–2685 (Solve: клампы и своды) ===
+                double qClampM3s = Math.Max(0.01, settings.QClampM3h) / 3600.0;
+                foreach (var ei in edgeIdx)
+                {
+                    var eC = res.Edges[ei];
+                    if (Math.Abs(eC.Q) > qClampM3s)
+                    {
+                        res.Warnings.Add("Q клампирован (анти-разнос): " + eC.ConnName + ": " + (eC.Q * 3600.0).ToString("0.#") + " -> " + settings.QClampM3h.ToString("0.#") + " м3/ч");
+                        eC.Q = Math.Sign(eC.Q) * qClampM3s;
+                    }
+                }
+            }
+
+            solveSw.Stop();
+            res.SolveMs = solveSw.Elapsed.TotalMilliseconds; // v45
+            res.Iterations = totalIters;
+            res.Converged = allConverged;
+            res.NodeBalanceOk = allConverged; // v84 (В2): узловая сходимость — отдельный флаг
+            res.StateEquilibrium = true;      // статика: критерий равновесия не применим
+
+            double maxImb = 0;
+            bool anySolvable = false;
+            for (int u = 0; u < N; u++)
+            {
+                var hn = res.Nodes[u]; if (hn.Isolated || hn.IsBoundary) continue;
+                anySolvable = true; double inflow = 0, outflow = 0;
+                foreach (var ei in adjacency[u]) { var e = res.Edges[ei]; double qh = e.Q * 3600.0; if (e.NodeBKey == hn.Key) inflow += qh; else if (e.NodeAKey == hn.Key) outflow += qh; }
+                hn.Imbalance = inflow - outflow; maxImb = Math.Max(maxImb, Math.Abs(hn.Imbalance));
+            }
+            res.MaxImbalance = anySolvable ? maxImb : 0;
+=== ЛИСТИНГ 5/6: BUDcad_2.2/HydraulicEngine.cs — строки 232–258 (класс HydraulicResult) ===
+    public class HydraulicResult
+    {
+        public List<HydraulicNode> Nodes = new List<HydraulicNode>();
+        public List<HydraulicEdge> Edges = new List<HydraulicEdge>();
+        public List<string> Warnings = new List<string>(); public List<string> Errors = new List<string>();
+        public bool Converged; public int Iterations; public double MaxImbalance; public double ScaledResidual;
+        // v84 (КП2.1-В2, решение коллегии): семантика сходимости разделена на два флага.
+        public bool NodeBalanceOk;         // невязка узлов в допуске решателя (статический критерий)
+        public bool StateEquilibrium;      // max |dM/dt|·dt/M < eps по всем ёмкостям (динамика)
+        public double StateEquilibriumMax; // фактический максимум относительного изменения масс
+        public double MaxImbalanceRel;     // относительный дисбаланс узла: |imb|/max(inflow,outflow)
+        public string ConvergenceNote;     // "dynamic equilibrium reached" / "state equilibrium not reached" / null
+        // v85 (КП2.1-В8): честная пометка о достоверности Psat-данных веществ сцены (отчёт/стационар).
+        public string PsatConfidenceNote;  // "Psat-данные — предварительные (low confidence): ..." / null
+        /// <summary>v55.19 (реестр п.112): результат устарел (сцена правилась после расчёта).
+        /// При InvalidateCalc результат НЕ обнуляется — выноски показывают последнее
+        /// состояние с пометкой «(устар.)», иначе после правки/на останове выноски пустые.</summary>
+        public bool IsStale;
+        public double SolveMs; // v45: время решения — для Log_miss
+        public Dictionary<int, HxResult> HxResults = new Dictionary<int, HxResult>(); public Dictionary<int, string> HxSkipped = new Dictionary<int, string>();
+        public Dictionary<int, FurnaceCalcResult> FurnaceResults = new Dictionary<int, FurnaceCalcResult>();
+=== ЛИСТИНГ 6/6: BUDcad_2.2.Tests/R38OverflowTests.cs — строки 258–310 (тест Э12 целиком) ===
+        [Fact]
+        public void R38_E12_DynamicPadNetworkSync()
+        {
+            int iw = IdxOf("Вода");
+            var sep = Tank38("С42", 10.0, 0.5, 0.0, -1, iw);
+            var a = Term("А42", 2.0, 0f, iw);
+            var d = Term("Д42", 0.1, -5.0f, iw);
+            var conns = new List<SceneConnection>
+            {
+                Conn(a.Id, a.Nozzles[0].Id, sep.Id, 101, 0.1, 5.0),
+                Conn(sep.Id, 103, d.Id, d.Nozzles[0].Id, 0.1, 2.0)
+            };
+            var st = new SimulationState();
+            var sbDiag = new System.Text.StringBuilder();
+            // R39-2: тик 0 — бутстрап СЦЕНЫ (заданный GasPressure=1.0 противоречит пустым молям
+            // подушки: CapacityCells пересчитывает P по PVT в первый тик). Согласование сеть↔ячейка
+            // меряем с тика 1 — там засев initP уже от свежей подушки (R35-б этап 2).
+            for (int t = 1; t < 5; t++)
+            {
+                var r = HydraulicEngine.SimulateTick(new List<SceneObject> { a, sep, d }, conns, S38(), st, 1.0);
+                if (t <= 2)
+                {
+                    foreach (var dg43 in r.Warnings ?? new List<string>())
+                        sbDiag.AppendLine($"WARN тик {t}: {dg43}");
+                    foreach (var nn in r.Nodes) sbDiag.AppendLine($"node тик {t}: {nn.Key} P={nn.Pressure:0.######} iso={nn.Isolated}");
+                    foreach (var ee in r.Edges) sbDiag.AppendLine($"edge тик {t}: conn={ee.ConnId} Q={ee.Q:0.########} R={ee.R:0.##e0}");
+                    sbDiag.AppendLine($"cell тик {t}: lvl={sep.LiquidLevel:0.####} GasP={sep.GasPressure:0.####} PhaseP={(st.PhasePressure.TryGetValue(sep.Id, out var pp43) ? pp43 : -1.0):0.####}");
+                    sbDiag.AppendLine($"conv тик {t}: resid={r.ScaledResidual:0.##e0} imb={r.MaxImbalanceRel:0.##e0} note={r.ConvergenceNote} ms={r.SolveMs:0.###}");
+                }
+                foreach (var nzId in new[] { 101, 102, 103 })
+                {
+                    var nN = r.Nodes.FirstOrDefault(nn => nn.ObjId == sep.Id && nn.NozzleId == nzId);
+                    if (nN == null) continue;
+                    if (double.IsNaN(nN.Pressure))
+                    {
+                        sbDiag.AppendLine($"тик {t} штюцер {nzId}: P сети NaN — факт R37 (решение не дошло до узла)");
+                        continue;
+                    }
+                    double zN = sep.Nozzles.First(nn => nn.Id == nzId).GetWorldPosition(sep).Item3;
+                    double pH = HydraulicEngine.HydrostaticP(sep, zN);
+                    Assert.True(Math.Abs(nN.Pressure - pH) <= 0.05,
+                        $"тик {t} штюцер {nzId}: P сети {nN.Pressure:0.####} бар ≠ гидростатика {pH:0.####} бар (>0.05) — факт R37 (сеть тянет узел ниже ячейки)\n{sbDiag}");
+                    double col = HydraulicEngine.HydrostaticColumn(sep, zN);
+                    double tol = Math.Max(0.05, 0.05 * Math.Max(0.05, Math.Abs(sep.GasPressure)));
+                    Assert.True(Math.Abs(sep.GasPressure - (nN.Pressure - col)) <= tol,
+                        $"тик {t} штюцер {nzId}: GasPressure {sep.GasPressure:0.####} ≠ P сети − столб {nN.Pressure - col:0.####}\n{sbDiag}");
+                }
+                if (t == 4)
+                {
+                    foreach (var nn in r.Nodes) sbDiag.AppendLine($"node {nn.Key} P={nn.Pressure:0.####} iso={nn.Isolated}");
+                    sbDiag.AppendLine($"lvl={sep.LiquidLevel:0.####} GasP={sep.GasPressure:0.####}");
+                }
+            }
+        }
+    }
+}
