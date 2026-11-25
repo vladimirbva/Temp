@@ -1,0 +1,285 @@
+Sub LH1_Convert()
+    Dim pth As String, fn As String, outn As String, ln As String
+    Dim nCutAll As Long, nPartsAll As Long, nMaxAll As Long   ' Ф32-пост-резка v25
+    Dim s As String, nm As String, s2 As String, rest As String, gv As String
+    Dim i As Long, p1 As Long, p2 As Long, p3 As Long, n As Long
+    Dim chi As Long, SZ As Long, csh As Boolean
+    Dim f1 As Integer, f2 As Integer
+    Dim curN As Long, hDone As Boolean, dDone As Boolean, noTail As Boolean
+    Dim totB As Long, totH As Long, totC As Long
+    Dim fileList() As String, nFiles As Long, fi As Long
+    Dim PD As Object
+    Dim dd As Long, clsSeen As Boolean
+
+    Set PD = CreateObject("Scripting.Dictionary")   ' LH1 v22: пресеты _0i для гашения давлений
+
+    ' --- выбор папки (LH1 v26 Ф5: диалог открывается в КОРНЕВОЙ папке книги/проекта,
+    ' а не в последней использованной; InitialFileName перебивает кеш Office-диалога) ---
+    Dim pth0 As String
+    pth0 = ThisWorkbook.path
+    If Len(pth0) = 0 Then pth0 = ActiveWorkbook.path
+    If Len(pth0) = 0 Then pth0 = CurDir
+    If Len(pth0) > 0 And Right(pth0, 1) <> "\" Then pth0 = pth0 & "\"
+    With Application.FileDialog(msoFileDialogFolderPicker)
+        .Title = "LH1 v26: папка с юнитами проекта (открывается корневая)"
+        If Len(pth0) > 0 Then .InitialFileName = pth0
+        If .Show <> -1 Then Exit Sub
+        pth = .SelectedItems(1)
+        If Right(pth, 1) <> "\" Then pth = pth & "\"
+    End With
+
+    ' --- проход 1: список файлов, защита от повтора, chi, размер массива, пресеты ---
+    chi = 0: csh = False: SZ = 0: nFiles = 0
+    ReDim fileList(1 To 200)
+    fn = Dir(pth & "*.txt")
+    Do While fn <> ""
+        If fn Like "*_LH1.txt" Then
+            MsgBox "LH1: в папке уже есть файлы _LH1 (" & fn & ") - детектор уже применён к проекту." & vbCrLf & _
+                   "Удалите старые *_LH1-файлы и запустите заново. Конверсия не выполнялась.", vbExclamation, "LH1 v24"
+            Exit Sub
+        End If
+        nFiles = nFiles + 1
+        If nFiles > UBound(fileList) Then ReDim Preserve fileList(1 To UBound(fileList) + 200)
+        fileList(nFiles) = fn
+        fn = Dir
+    Loop
+
+    For fi = 1 To nFiles
+        fn = fileList(fi)
+        f1 = FreeFile: Open pth & fn For Input As #f1
+        Do While Not EOF(f1)
+            Line Input #f1, ln
+            If InStr(ln, "LH1 v26") Or InStr(ln, "LH1 v25") Or InStr(ln, "LH1 v22") > 0 Or InStr(ln, "LH1 v23") > 0 Or InStr(ln, "LH1 v24") > 0 Or InStr(ln, "NaN_t[") > 0 Or InStr(ln, "LH1-IN") > 0 Or InStr(ln, "INOFF") > 0 Then
+                Close #f1
+                MsgBox "LH1: детектор уже стоит в проекте (маркер найден в " & fn & ")." & vbCrLf & _
+                       "Конверсия не выполнялась.", vbExclamation, "LH1 v24"
+                Exit Sub
+            End If
+            ' пресеты _0i: строка "имя := число;" (с kerr) -> словарь для гашения
+            If fn Like "*_0i.txt" Then
+                s2 = Trim(ln)
+                p1 = InStr(s2, ":=")
+                If p1 > 1 And InStr(s2, "kerr") > 0 And Left(s2, 2) <> "//" Then
+                    nm = Trim(Left(s2, p1 - 1))
+                    p2 = InStr(p1 + 2, s2, ";")
+                    If p2 > 0 And L1_Simple(nm) Then
+                        s2 = Trim(Mid(s2, p1 + 2, p2 - p1 - 2))
+                        If Len(s2) > 0 And InStr(s2, "'") = 0 And InStr(s2, Chr(34)) = 0 Then
+                            If Not PD.Exists(nm) Then PD.Add nm, s2
+                        End If
+                    End If
+                End If
+            End If
+            p1 = InStr(ln, "Давление и расход")
+            If p1 > 0 Then
+                p2 = InStr(1, ln, "#")
+                If p2 > 0 And p2 < p1 Then
+                    n = Val(Trim(Mid(ln, p2 + 1, p1 - p2 - 1)))
+                    If n > chi Then chi = n
+                End If
+            End If
+            If InStr(ln, "for (int") > 0 Or InStr(ln, "Math.") > 0 Then csh = True
+            If InStr(ln, "ISTO_p") > 0 And InStr(ln, "array") > 0 Then
+                p1 = InStr(ln, "array[1..")
+                If p1 > 0 And SZ = 0 Then SZ = Val(Trim(Mid(ln, p1 + 9)))
+            End If
+        Loop
+        Close #f1
+    Next fi
+    csh1 = csh
+
+    If chi = 0 Then
+        MsgBox "LH1 v23: блоки 'Давление и расход' не найдены - это сборка 19.785?", vbExclamation, "LH1 v24"
+        Exit Sub
+    End If
+    If SZ = 0 Then SZ = chi + 1
+
+    ' --- проход 2: конвертация каждого файла из собранного списка в *_LH1.txt ---
+    For fi = 1 To nFiles
+        fn = fileList(fi)
+        If fn Like "*_LH1.txt" Then GoTo NextFile   ' страховка: не конвертировать результат
+        outn = Left(fn, Len(fn) - 4) & "_LH1.txt"
+        noTail = (fn Like "*_0i.txt")              ' пресеты-инициализация: копия без стражей
+        curN = 0: hDone = False: dDone = False: dd = 0
+        f1 = FreeFile: Open pth & fn For Input As #f1
+        f2 = FreeFile: Open pth & outn For Output As #f2
+        Do While Not EOF(f1)
+            Line Input #f1, ln
+            If noTail Then
+                Print #f2, ln
+            Else
+                s = Trim(ln)
+                ' --- номер текущего узла: заголовок блока ---
+                p1 = InStr(ln, "Давление и расход")
+                If p1 > 0 Then
+                    p2 = InStr(1, ln, "#")
+                    If p2 > 0 And p2 < p1 Then curN = Val(Trim(Mid(ln, p2 + 1, p1 - p2 - 1)))
+                End If
+                ' --- декларации: v22 - после array-строки ISTO_p/XX0 (один раз - в _00; секция канона - public: общий счётчик NaN_seq/NaN_call через наследование, скан в _01 снова живой) ---
+                If (Not dDone) And (InStr(ln, "ISTO_p") > 0 Or InStr(ln, "XX0") > 0) And InStr(ln, "array") > 0 Then
+                    Print #f2, ln
+                    Print #f2, L1_Decls(SZ)
+                    dDone = True
+                ' --- страж входа (активный): aa2 := X + INT_PRT - 1 ---
+                ElseIf curN > 0 And curN <= SZ And InStr(s, "aa2") = 1 And InStr(ln, "INT_PRT-1") > 0 Then
+                    nm = Mid(ln, 1, InStr(ln, "INT_PRT-1") - 1)
+                    p2 = InStrRev(nm, "+")
+                    If p2 > 0 Then nm = Mid(nm, 1, p2 - 1)
+                    p2 = InStrRev(nm, "=")
+                    If p2 > 0 Then nm = Trim(Mid(nm, p2 + 1))
+                    Print #f2, ln
+                    ' v22: страж только ВНУТРИ тела процедуры (dd>0) - защита компиляции
+                    If Len(nm) > 0 And dd > 0 Then
+                        totB = totB + 1
+                        If PD.Exists(nm) Then gv = PD(nm) Else gv = "100"
+                        If csh1 Then
+                            Print #f2, "if (" & L1_Bad(nm) & ") {"
+                            Print #f2, "  " & L1_Rec("NaN_in[" & CStr(curN) & "]", nm, curN, 1)
+                            Print #f2, "  if (" & L1_Live("ISTO_p[" & CStr(curN) & "]") & ") {"
+                            If L1_Simple(nm) Then Print #f2, "    " & nm & "=ISTO_p[" & CStr(curN) & "];"
+                            Print #f2, "    aa2=ISTO_p[" & CStr(curN) & "];"
+                            Print #f2, "  } else {"
+                            If L1_Simple(nm) Then Print #f2, "    " & nm & "=" & gv & ";"
+                            Print #f2, "    aa2=" & gv & ";"
+                            Print #f2, "  }"
+                            Print #f2, "  Log("" LH1 freeze: узел #""+" & CStr(curN) & "+"" - " & nm & " NaN/бред - last-good/пресет"");  kerr = -795;"
+                            Print #f2, "} else if " & L1_RngBad(nm) & " {"
+                            Print #f2, "  " & L1_Rec("NaN_in[" & CStr(curN) & "]", "диапазон: " & nm, curN, 3)
+                            Print #f2, "  if (" & L1_Live("ISTO_p[" & CStr(curN) & "]") & ") {"
+                            If L1_Simple(nm) Then Print #f2, "    " & nm & "=ISTO_p[" & CStr(curN) & "];"
+                            Print #f2, "    aa2=ISTO_p[" & CStr(curN) & "];"
+                            Print #f2, "  } else {"
+                            If L1_Simple(nm) Then Print #f2, "    " & nm & "=" & gv & ";"
+                            Print #f2, "    aa2=" & gv & ";"
+                            Print #f2, "  }"
+                            Print #f2, "  Log("" LH1 freeze: узел #""+" & CStr(curN) & "+"" - " & nm & " вне диапазона LIM_P - last-good/пресет"");  kerr = -796;"
+                            Print #f2, "}"
+                        Else
+                            Print #f2, "if " & L1_Bad(nm) & " then begin"
+                            Print #f2, "  " & L1_Rec("NaN_in[" & CStr(curN) & "]", nm, curN, 1)
+                            Print #f2, "  if " & L1_Live("ISTO_p[" & CStr(curN) & "]") & " then begin"
+                            If L1_Simple(nm) Then Print #f2, "    " & nm & ":=ISTO_p[" & CStr(curN) & "];"
+                            Print #f2, "    aa2:=ISTO_p[" & CStr(curN) & "];"
+                            Print #f2, "  end else begin"
+                            If L1_Simple(nm) Then Print #f2, "    " & nm & ":=" & gv & ";"
+                            Print #f2, "    aa2:=" & gv & ";"
+                            Print #f2, "  end;"
+                            Print #f2, "  Log(' LH1 freeze: узел #" & CStr(curN) & " - " & nm & " NaN/бред - last-good/пресет');  kerr:= -795;"
+                            Print #f2, "end else if " & L1_RngBad(nm) & " then begin"
+                            Print #f2, "  " & L1_Rec("NaN_in[" & CStr(curN) & "]", "диапазон: " & nm, curN, 3)
+                            Print #f2, "  if " & L1_Live("ISTO_p[" & CStr(curN) & "]") & " then begin"
+                            If L1_Simple(nm) Then Print #f2, "    " & nm & ":=ISTO_p[" & CStr(curN) & "];"
+                            Print #f2, "    aa2:=ISTO_p[" & CStr(curN) & "];"
+                            Print #f2, "  end else begin"
+                            If L1_Simple(nm) Then Print #f2, "    " & nm & ":=" & gv & ";"
+                            Print #f2, "    aa2:=" & gv & ";"
+                            Print #f2, "  end;"
+                            Print #f2, "  Log(' LH1 freeze: узел #" & CStr(curN) & " - " & nm & " вне диапазона LIM_P - last-good/пресет');  kerr:= -796;"
+                            Print #f2, "end;"
+                        End If
+                    End If
+                ' --- страж хвоста (v22 ЗАМОРОЗКА): ISTO_p[N] := X ---
+                ElseIf InStr(s, "ISTO_p[") = 1 Then
+                    p1 = InStr(ln, "ISTO_p[") + 7
+                    p2 = InStr(p1, ln, "]")
+                    n = 0
+                    If p2 > p1 Then n = Val(Trim(Mid(ln, p1, p2 - p1)))
+                    p1 = InStr(p2, ln, "=")
+                    nm = ""
+                    If p1 > 0 Then
+                        nm = Trim(Mid(ln, p1 + 1))
+                        i = InStr(nm, ";")
+                        If i > 0 Then nm = Left(nm, i - 1)
+                        nm = Trim(nm)
+                    End If
+                    ' v22: остаток строки после первого ";" (kerr и пр.) - сохраняем в заморозке
+                    i = InStr(ln, ";")
+                    If i > 0 Then rest = Trim(Mid(ln, i + 1)) Else rest = ""
+                    If n > 0 And n <= SZ And Len(nm) > 0 And (Mid(nm, 1, 1) < "0" Or Mid(nm, 1, 1) > "9") Then
+                        totH = totH + 1
+                        If PD.Exists(nm) Then gv = PD(nm) Else gv = "100"
+                        If csh1 Then
+                            Print #f2, "if (!(double.IsNaN(" & nm & ")) && (Math.Abs(" & nm & ")<=1e300) && !(" & L1_RngBad(nm) & ")) ISTO_p[" & CStr(n) & "]=" & nm & ";"
+                            If Len(rest) > 0 Then Print #f2, rest
+                            Print #f2, "if (" & L1_Bad(nm) & ") {"
+                            Print #f2, "  " & L1_Rec("NaN_t[" & CStr(n) & "]", nm, n, 2)
+                            Print #f2, "  if (" & L1_Live("ISTO_p[" & CStr(n) & "]") & ") {"
+                            If L1_Simple(nm) Then Print #f2, "    " & nm & "=ISTO_p[" & CStr(n) & "];"
+                            Print #f2, "  } else {"
+                            If L1_Simple(nm) Then Print #f2, "    " & nm & "=" & gv & ";"
+                            Print #f2, "  }"
+                            Print #f2, "  Log("" LH1 freeze: узел #""+" & CStr(n) & "+"" - " & nm & " NaN/бред - зеркало НЕ обновлено"");  kerr = -797;"
+                            Print #f2, "} else if " & L1_RngBad(nm) & " {"
+                            Print #f2, "  " & L1_Rec("NaN_t[" & CStr(n) & "]", "диапазон: " & nm, n, 4)
+                            Print #f2, "  if (" & L1_Live("ISTO_p[" & CStr(n) & "]") & ") {"
+                            If L1_Simple(nm) Then Print #f2, "    " & nm & "=ISTO_p[" & CStr(n) & "];"
+                            Print #f2, "  } else {"
+                            If L1_Simple(nm) Then Print #f2, "    " & nm & "=" & gv & ";"
+                            Print #f2, "  }"
+                            Print #f2, "  Log("" LH1 freeze: узел #""+" & CStr(n) & "+"" - " & nm & " вне диапазона - зеркало НЕ обновлено"");  kerr = -798;"
+                            Print #f2, "}"
+                        Else
+                            Print #f2, "if (Not IsNan(" & nm & ")) and (Abs(" & nm & ")<=1e300) and (Not (" & L1_RngBad(nm) & ")) then ISTO_p[" & CStr(n) & "]:=" & nm & ";"
+                            If Len(rest) > 0 Then Print #f2, rest
+                            Print #f2, "if " & L1_Bad(nm) & " then begin"
+                            Print #f2, "  " & L1_Rec("NaN_t[" & CStr(n) & "]", nm, n, 2)
+                            Print #f2, "  if " & L1_Live("ISTO_p[" & CStr(n) & "]") & " then begin"
+                            If L1_Simple(nm) Then Print #f2, "    " & nm & ":=ISTO_p[" & CStr(n) & "];"
+                            Print #f2, "  end else begin"
+                            If L1_Simple(nm) Then Print #f2, "    " & nm & ":=" & gv & ";"
+                            Print #f2, "  end;"
+                            Print #f2, "  Log(' LH1 freeze: узел #" & CStr(n) & " - " & nm & " NaN/бред - зеркало НЕ обновлено');  kerr:= -797;"
+                            Print #f2, "end else if " & L1_RngBad(nm) & " then begin"
+                            Print #f2, "  " & L1_Rec("NaN_t[" & CStr(n) & "]", "диапазон: " & nm, n, 4)
+                            Print #f2, "  if " & L1_Live("ISTO_p[" & CStr(n) & "]") & " then begin"
+                            If L1_Simple(nm) Then Print #f2, "    " & nm & ":=ISTO_p[" & CStr(n) & "];"
+                            Print #f2, "  end else begin"
+                            If L1_Simple(nm) Then Print #f2, "    " & nm & ":=" & gv & ";"
+                            Print #f2, "  end;"
+                            Print #f2, "  Log(' LH1 freeze: узел #" & CStr(n) & " - " & nm & " вне диапазона - зеркало НЕ обновлено');  kerr:= -798;"
+                            Print #f2, "end;"
+                        End If
+                    Else
+                        Print #f2, ln
+                    End If
+                ' --- HEALTH-скан: после строки "У И: n=" (не "Б У И") ---
+                ElseIf (Not hDone) And InStr(ln, "У И: n=") > 0 And InStr(ln, "Б У И") = 0 Then
+                    Print #f2, ln
+                    Print #f2, L1_Scan(SZ)
+                    hDone = True
+                Else
+                    ' Ф4: строка с кириллицей вне литералов/комментариев = бред-декларация -> комментарий
+                    If L1_CyrOut(ln) And InStr(ln, "LH1") = 0 Then
+                        Print #f2, "// " & ln
+                        totC = totC + 1
+                    Else
+                        Print #f2, ln
+                    End If
+                End If
+                ' --- глубина begin/end для защиты компиляции (после обработки строки) ---
+                dd = dd + L1_Delta(ln)
+            End If
+        Loop
+        Close #f1, #f2
+    L9_CutFile pth, outn, nCutAll, nPartsAll, nMaxAll, "LH1 v25"   ' Ф32-пост-резка v25
+NextFile:
+    Next fi
+
+    MsgBox "LH1 v22: готово (реформа гашений: last-good + пресет + диапазон)." & vbCrLf & _
+           "Узлов (chi) = " & CStr(chi) & ", размер массива = " & CStr(SZ) & _
+           IIf(csh1, ", стиль C#", ", стиль pas") & vbCrLf & _
+           "Стражей входа (aa2): " & CStr(totB) & ", стражей хвостов (заморозка): " & CStr(totH) & _
+           ", строк-описаний закомментировано (Ф4): " & CStr(totC) & vbCrLf & _
+           "Гашение: last-good из зеркала ISTO_p -> пресет _0i -> крайний 100. Хвост: зеркало НЕ обновляется бредом." & vbCrLf & _
+           "Диапазон давлений: LIM_P_min..LIM_P_max (инициализация _0i; активен при LIM_P_max>0)." & vbCrLf & _
+           "HEALTH: одна строка на виновника (вход|хвост|диапазон). Расходная цепочка - в LH2 v28 (К2)." & vbCrLf & _
+           "Файлы: *_LH1.txt (исходные не тронуты).", vbInformation, "LH1 v22"
+    If nCutAll > 0 Then MsgBox "Ф32-пост-резка v25: процедур разрезано " & nCutAll & ", частей добавлено " & nPartsAll & ", макс. часть " & nMaxAll & " строк.", vbInformation, "LH1 v25"
+End Sub
+
+'============================================================
+'=====================================================================
+'=====================================================================
+'=====================================================================
+'=====================================================================
+'=====================================================================
