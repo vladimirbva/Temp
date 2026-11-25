@@ -1,0 +1,698 @@
+BUDCAD 2.3 — ЗАДАЧА ДЛЯ CLAUDE CODE (КП4.1)
+Код запроса: REQ-002-R40-1-CAPDIAG-PATCH
+ГВР: файл задачи записан в репозиторий https://github.com/vladimirbva/Temp (ветка main),
+путь: BUDcad/KP41_R40-2_capG_req002.txt (папка BUDcad в корне ГВР; предыдущий запрос:
+BUDcad/KP41_R40-1_CAPDIAG_req001.txt — в нём описание проекта и листинги REQ-001).
+Дата: 26.11.2026. База: 2.3.0-r40 (= r39b, full_code sha1 41f169f8aea01afe00c48b2085a110d1fc873753).
+
+=== СТАТУС ПО REQ-001 (аудитор) ===
+Твой ход 1 принят: аудит честный, спецификация D1–D3 ПРИНЯТА аудитором без правок.
+Уточнения аудитора к спецификации (только зафиксировать, не менять):
+- Конверсия ёмкости подтверждена кодом: capDt = 1/(1e5·dt); capG = C_i·capDt; значит
+  xSpec = capG[i] / (C_i·1e-5/dt) — корректная спек-эквивалентность (при C_i>0).
+- Определения NetworkNodeSpec/NetworkEdgeSpec/NetworkSpec/HydraulicNode/HydraulicEdge — В HydraulicEngine.cs
+  (листинги 3/4 ниже), отдельных файлов нет.
+- Формула расчётного C_i (BuildNetwork, строки 1829–1839): cap = vGas/max(0.05,pGas) + vLiq·5e-5;
+  C_i = cap / max(1, Nozzles.Count); vGas = max(0.01·vTot, vTot − vLiq); vLiq = clamp(LiquidLevel,0,1)·vTot;
+  pGas = max(0.05, o.GasPressure). CAPDISP зеркалит ЭТИ входы из кода BuildNetwork (см. листинг 6).
+- Находка 3 подтверждена: MaxImbalanceRel и Imbalance считаются ТОЛЬКО по рёбрам (листинг 7, строки
+  2685–2712), ёмкостный сток в метрику не входит — противоречие объяснимо, правку метрики НЕ делать
+  (отдельная задача R40-2+).
+- «Красный флаг» REQ-001: хвосты SimulateTick (1046–1076) и Solve (2685–2788) — в листингах 5/7;
+  обнуления/подмены Warnings там НЕТ. Проверка цепи живым прогоном — на стороне ассистента после
+  твоего патча. Твоя задача — патч, не прогоны.
+Сборка файлов для правки: оба файла правишь ЦЕЛИКОМ по полным листингам ниже + REQ-001. Если
+какой-то участок для однозначной правки не виден — не guessing: запроси точные строки.
+
+=== ЗАДАЧА R40-1 (продолжение, ровно тот же шаг — применить D1–D3) ===
+D1. GgaSolver.cs, TEMP-DIAG-цикл CAPDIAG (после строки 1034 REQ-001):
+    - Guard: if (capG[i] > 0 || specNodes[nodeIdx[i]].CapacityM3PerBar > 0).
+    - Формат строки (существующие поля и форматы не менять, новые — в хвосте):
+      CAPDIAG: узел {Key} C_i={CapacityM3PerBar:0.######} capG={capG[i]:0.##e0}
+      capGeff={capGeff:0.##e0} capP0={capP0[i]/1e5:0.######} P={P[i]/1e5:0.######}
+      useCap={useCapacity} dt={settings.TimeStepSeconds:0.###} capSink={capG[i]*(P[i]-capP0[i]):0.##e0}
+      xSpec={capG[i]/(specNodes[nodeIdx[i]].CapacityM3PerBar*1e-5/Math.Max(1e-9,settings.TimeStepSeconds)):0.###}
+      (capG/capGeff — м3/(с·Па); capSink — м3/с; C_i — м3/бар)
+    - capGeff_i = (Σ приток − Σ отток по рёбрам узла) / (P[i] − capP0[i]); |P[i]−capP0[i]| < 1 Па →
+      capGeff печатается как n/a. Перебор рёбер: по листингу 2 (m: ea[m]/eb[m], aFixed/bFixed,
+      активность activeEdge[m], q = EdgeEval(...).Q как в balanceNorm) — фактический поток на
+      решённом P (после цикла вычисления Q), знаки как в F-аккумуляции: приток — ребро входит в
+      узел (b-конец: F[eb] -= q → для узла eb[смотрящего на q>0] приток = q; a-конец: q>0 = отток).
+      Реализуй согласованно с семантикой F в balanceNorm/Ньютоне (листинг 2) — суммирование по
+      узлу: capGeff = -(Σ_{m: eb[m]==i, !bFixed[m]} q[m]·(−1) ...) — точную формулу сведи к
+      (Σприток − Σотток)/(P−P0) по фактическим Q[m] решённого тика.
+D2. capGeff — вычисляется в той же TEMP-DIAG-секции (перед CAPDIAG-циклом), только из решённых
+    Q[m]/P[i]; не менять логику решателя; вычисление не должно ломать сходимость (читай только).
+D3. HydraulicEngine.cs: CAPDISP-строки — В НАЧАЛЕ Solve (после создания res, до цикла фрагментов),
+    а не в BuildNetwork: BuildNetwork пропускается при кэше spec (REQ-001 листинг 2), Solve
+    вызывается каждый тик. Для каждого узла spec.Nodes с CapacityM3PerBar > 0:
+      CAPDISP: узел {Key} Ccalc={spec.Nodes[k].CapacityM3PerBar:0.######} vGas={...:0.######}
+      pGas={...:0.######} vLiq={...:0.######} nNoz={...}
+    - Значения vGas/pGas/vLiq/nNoz — ЗЕРКАЛО формулы BuildNetwork (листинг 6: объект ищется по
+      s.ObjId через byId/поиск по сцене; Kind Tank/Separator/Reactor/Column; vTot = max(0, o.Volume);
+      vLiq = clamp(LiquidLevel,0,1)·vTot; vGas = max(0.01·vTot, vTot−vLiq); pGas = max(0.05,
+      o.GasPressure); nNoz = max(1, o.Nozzles.Count)). Дублировать формулу честно (это TEMP-DIAG);
+      если в начале Solve недоступны objects/connections — расширь доступ через уже имеющиеся
+      параметры (objects есть в сигнатуре Solve) — по листингам 5/7 построй снапшот через цикл
+      byId-подобный (не менять сигнатуры).
+    - CAPDISP добавлять в res.Warnings напрямую (Solve — тот результат, что возвращается тесту).
+Формат правок: только изменённые файлы целиком; маркеры «R40-1» на каждой правке; БЕЗ изменения
+сигнатур, БЕЗ переименований, БЕЗ переформатирования нетронутых строк; клампы/сан-чеки/эталоны/
+TEMP-DIAG R39-2 не трогать; чистка TEMP-DIAG — НЕ в этой задаче (R40-2). Прогоны не выполнять.
+Пункт «вопрос для Владельца»: вопросов нет; если однозначно — решай сам (стандартная формулировка).
+
+=== ФОРМАТ ОТВЕТА ===
+1) Полный текст GgaSolver.cs целиком (с маркерами R40-1).
+2) Полный текст HydraulicEngine.cs целиком (с маркерами R40-1) — если объём ответа не влезает,
+   выдай сначала GgaSolver.cs и начало HydraulicEngine.cs до BuildNetwork включительно,
+   остальное в следующем ответе (после запроса ассистента «REQ-002-часть2») — НЕ резать правки.
+3) Кратко: какие места считал рискованными, что осталось неопределённым.
+
+=== ЛИСТИНГ 1/7: BUDcad_2.2/GgaSolver.cs — строки 378–386 и 425–500 (сигнатура Solve, узлы, границы, innerIdx, useCapacity, capG/capP0, рёберные массивы) ===
+        public static bool Solve(
+            List<int> nodeIdx, List<int> edgeIdx,
+            List<NetworkNodeSpec> specNodes, List<NetworkEdgeSpec> specEdges,
+            HydraulicSettings settings,
+            Dictionary<int, HydraulicNode> outNodes, Dictionary<int, HydraulicEdge> outEdges,
+            List<string> diagnostics,
+            ref int iterationsUsed, ref double scaledResidual,
+            double[] initPBar = null, double[] initQ = null, NetworkDynState dyn = null) // v56 (п.106)
+        {
+            int N = nodeIdx.Count;
+            if (N == 0) return true;
+            int M = edgeIdx.Count;
+            if (dyn == null) dyn = NetworkDynState.From(specNodes, specEdges); // v56 (п.106): фолбэк
+
+            // v65 (п.106, этап 3): живой слой dyn перекрывает динамические поля снимков spec
+            // (границы/R/IsClosed/Density/клампы/ζ). Локальные eff-копии (ShallowCopy) —
+            // сам spec остаётся иммутабельным; решатель весь тик работает на живых значениях.
+            {
+                var effN65 = new List<NetworkNodeSpec>(specNodes.Count);
+                for (int i65 = 0; i65 < specNodes.Count; i65++)
+                {
+                    var c65 = specNodes[i65].ShallowCopy();
+                    if (i65 < dyn.IsBoundary.Length)
+                    {
+                        c65.IsBoundary = dyn.IsBoundary[i65]; c65.BoundaryP = dyn.BoundaryP[i65]; c65.Temperature = dyn.Temperature[i65];
+                        if (dyn.MoleFractions != null && i65 < dyn.MoleFractions.Length) c65.MoleFractions = dyn.MoleFractions[i65];
+                    }
+                    effN65.Add(c65);
+                }
+                specNodes = effN65;
+                var effE65 = new List<NetworkEdgeSpec>(specEdges.Count);
+                for (int i65 = 0; i65 < specEdges.Count; i65++)
+                {
+                    var c65 = specEdges[i65].ShallowCopy();
+                    if (i65 < dyn.R.Length)
+                    {
+                        c65.R = dyn.R[i65]; c65.Density = dyn.Density[i65]; c65.IsClosed = dyn.IsClosed[i65];
+                        c65.GasInvLimitQ = dyn.GasInvLimitQ[i65]; c65.GasInvAtA = dyn.GasInvAtA[i65];
+                        c65.ZetaArm = dyn.ZetaArm[i65]; c65.ZetaEq = dyn.ZetaEq[i65];
+                        if (i65 < dyn.WeirQPot.Length) { c65.WeirQPot = dyn.WeirQPot[i65]; c65.WeirSign = dyn.WeirSign[i65]; } // R38 (В.3)
+                        if (i65 < dyn.PsatPa.Length) { c65.PsatPa = dyn.PsatPa[i65]; c65.Unprimed = dyn.Unprimed[i65]; } // R39-2 (Р-10)
+                    }
+                    effE65.Add(c65);
+                }
+                specEdges = effE65;
+            }
+
+            var local = new Dictionary<int, int>();
+            for (int i = 0; i < N; i++) local[nodeIdx[i]] = i;
+
+            // --- Узлы: давления и границы ---
+            var isBoundary = new bool[N];
+            var P = new double[N];
+            double pMean = 0; int nb = 0;
+            for (int i = 0; i < N; i++)
+            {
+                var s = specNodes[nodeIdx[i]];
+                if (s.IsBoundary) { isBoundary[i] = true; P[i] = s.BoundaryP * 1e5; pMean += P[i]; nb++; }
+                else P[i] = (initPBar != null) ? ((i < initPBar.Length && !double.IsNaN(initPBar[i])) ? initPBar[i] * 1e5 : double.NaN)
+                                         : (!double.IsNaN(s.InitialP) ? s.InitialP * 1e5 : double.NaN); // v55.21 (п.106-этап 2)
+            }
+            if (nb > 0) pMean /= nb;
+            for (int i = 0; i < N; i++)
+                if (!isBoundary[i] && double.IsNaN(P[i])) P[i] = nb > 0 ? pMean : 1e5;
+
+            // Если граничных узлов нет вообще — уровень давления не определён физически.
+            // Якорим первый внутренний узел на 1 бар и решаем относительно него.
+            if (nb == 0)
+            {
+                for (int i = 0; i < N; i++)
+                {
+                    if (!isBoundary[i])
+                    {
+                        isBoundary[i] = true;
+                        P[i] = 1e5;
+                        diagnostics.Add("GGA: граничных узлов нет, узел " + specNodes[nodeIdx[i]].Key + " заанкерен на 1 бар.");
+                        break;
+                    }
+                }
+            }
+
+            var innerIdx = new List<int>();
+            for (int i = 0; i < N; i++) if (!isBoundary[i]) innerIdx.Add(i);
+
+            // --- Ёмкостная динамика (Спринт 2б) ---
+            // C_i [м³/бар] — ёмкость узла; G_cap = C_i·1e5/Δt — проводимость в м³/(с·Па).
+            // P_prev — давление прошлого тика (из InitialP, бар).
+            // Ёмкостный член C·dP/dt включается ТОЛЬКО в динамике (SimMode): в стационаре
+            // P_init = среднее граничных, и G_cap тянет решение к нему вместо физического
+            // (ревью v11-3: при G_cap >> 1/R стационар выдавал «среднее по границам»).
+            bool useCapacity = settings.DynamicCapacity && settings.SimMode && settings.TimeStepSeconds > 0.01;
+            // v28: единицы ёмкостной проводимости исправлены. Q = C·ΔP[бар]/Δt; в Па это
+            // Q = C·ΔP[Па]/(1e5·Δt), т.е. G_cap = C/(1e5·Δt) [м³/(с·Па)]. Было C·1e5/Δt —
+            // завышение в (1e5)² = 1e10 раз: ёмкость «замораживала» давление узла
+            // (G_cap >> проводимостей рёбер), тик не двигал P ни на что.
+            double capDt = useCapacity ? 1.0 / (1e5 * settings.TimeStepSeconds) : 0.0;
+            var capG = new double[N];
+            var capP0 = new double[N];
+            if (useCapacity)
+            {
+                for (int i = 0; i < N; i++)
+                {
+                    if (isBoundary[i]) continue;
+                    double c = specNodes[nodeIdx[i]].CapacityM3PerBar;
+                    if (c <= 0) continue;
+                    capG[i] = c * capDt;
+                    capP0[i] = (initPBar != null) ? ((i < initPBar.Length && !double.IsNaN(initPBar[i])) ? initPBar[i] * 1e5 : P[i])
+                                          : (!double.IsNaN(specNodes[nodeIdx[i]].InitialP) ? specNodes[nodeIdx[i]].InitialP * 1e5 : P[i]); // v55.21 (п.106-этап 2)
+                }
+            }
+
+            // --- Рёбра ---
+            var edges = edgeIdx.Select(i => specEdges[i]).ToArray();
+            var ea = new int[M];
+            var eb = new int[M];
+            var R0 = new double[M];
+            var head = new double[M];
+            var Q = new double[M];
+            var Qprev = new double[M];
+            var G = new double[M];
+            var DQdPin = new double[M]; // R37 (P0-2): асимметричный кавитационный/NPSH член — для матрицы
+            var activeEdge = new bool[M];
+=== ЛИСТИНГ 2/7: BUDcad_2.2/GgaSolver.cs — строки 690–835 (balanceNorm с capG, цикл Ньютона: невязка, active, F, матрица J с capG-диагональю) ===
+                    if (!activeEdge[m]) continue;
+                    double dpNet = pa(m, arr) - pb(m, arr) - head[m];
+                    double q = EdgeEval(edges[m], R0[m], dpNet, pa(m, arr), settings.ReffMax, pScalePa, QActOf(m), activeEdge[m], false, double.NaN, pb(m, arr), head[m]).Q; // R39-2 (Р-10)
+                    if (!aFixed[m]) F[ea[m]] += q;
+                    if (!bFixed[m]) F[eb[m]] -= q;
+                }
+                // v33: в норму сходимости входит ПОЛНАЯ невязка (рёбра + ёмкостный член):
+                // неявная точка достижима за счёт этого, Ньютон не «замирает» на рёберном
+                // критерии (проблема v31), а перепрыгивание нуля dp по-прежнему исключено
+                // проекцией шага (v32). Аккумуляция ёмкости при этом точная: сходимость
+                // означает ΣQ + capG·(P−P0) ≈ 0, т.е. дисбаланс рёбер уходит в накопление.
+                for (int i = 0; i < N; i++)
+                    if (capG[i] > 0) F[i] += capG[i] * (arr[i] - capP0[i]);
+                double nrm = 0;
+                for (int i = 0; i < N; i++)
+                    if (!isBoundary[i]) nrm = Math.Max(nrm, Math.Abs(F[i]) / qRef);
+                return nrm;
+            };
+
+            bool converged = false;
+            double relax0 = Math.Max(0.05, Math.Min(1.0, settings.RelaxationFactor));
+            int iter = 0;
+            // v38 (ревью 4): буферы line search — ОДИН раз на Solve (v37 делал new double[N]
+            // на каждую итерацию Ньютона; теперь и это убрано)
+            double[] lineLambdas = new[] { 1.0, 0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.0078125 };
+            double[] pT = new double[N];
+            // v45 (лог #4/#26/#36): флаг однократного восстановления после провала BiCGSTAB
+            bool coldRetried = false;
+
+            for (iter = 0; iter < settings.MaxIterations; iter++)
+            {
+                // 1. Точные расходы и проводимости из текущих давлений
+                for (int m = 0; m < M; m++)
+                {
+                    Qprev[m] = Q[m];
+                    double dpNet = activeEdge[m] ? pa(m, P) - pb(m, P) - head[m] : 0.0;
+                    var ev37 = EdgeEval(edges[m], R0[m], dpNet, pa(m, P), settings.ReffMax, pScalePa, QActOf(m), activeEdge[m], true, double.NaN, pb(m, P), head[m]); // R39-2 (Р-10)
+                    Q[m] = ev37.Q;
+                    // v55.3 (реестр п.83): опциональный кламп скорости 50 м/с — дефолт ВЫКЛ (эталоны не трогаются)
+                    if (ClampFlowSpeed50)
+                    {
+                        double d83 = Math.Max(1e-6, edges[m].Diameter);
+                        double qMax83 = 50.0 * Math.PI * d83 * d83 / 4.0;
+                        if (Math.Abs(Q[m]) > qMax83) Q[m] = Math.Sign(Q[m]) * qMax83;
+                    }
+                    if (Q[m] != ev37.Q)
+                    {
+                        // кламп скорости изменил q — g пересчитываем для фактического q (единый источник)
+                        var ev37g = EdgeEval(edges[m], R0[m], dpNet, pa(m, P), settings.ReffMax, pScalePa, QActOf(m), activeEdge[m], true, Q[m], pb(m, P), head[m]); // R39-2 (Р-10)
+                        G[m] = ev37g.G; DQdPin[m] = ev37g.DQdPin;
+                    }
+                    else { G[m] = ev37.G; DQdPin[m] = ev37.DQdPin; }
+                }
+
+                // 2. Проверка сходимости: изменение расходов + баланс узлов
+                double dQ = 0;
+                for (int m = 0; m < M; m++)
+                    if (activeEdge[m]) dQ = Math.Max(dQ, Math.Abs(Q[m] - Qprev[m]) / qRef);
+                double balance = balanceNorm(P);
+                scaledResidual = Math.Max(dQ, balance);
+                // v27: сходимость признаётся и на первой итерации — тёплый старт может уже быть решением
+                // (иначе на плато line search не улучшает и тик помечается «стагнацией» ложной).
+                if (scaledResidual < settings.Tolerance) { converged = true; iter++; break; }
+                // v30: абсолютный пол сходимости. Ручной расчёт заканчивался «GGA: стагнация …
+                // (0 м³/с)» — решение физически сошлось до пыли, но нормированная невязка
+                // balance/qRef не опускалась ниже допуска: qRef при холодном старте задаётся
+                // масштабом sqrt(pScale/typR), и допуск становился недостижимым. Принимаем решение,
+                // если рёберный дисбаланс И изменение расходов пренебрежимы в АБСОЛЮТНЫХ м³/с
+                // (< 1e-5 м³/с ≈ 0.036 м³/ч) — это и есть гидравлическое решение.
+                // v37 (ревью 5): мёртвые balanceAbs/dQabs удалены — абсолютный критерий
+                // пересчитывается ниже в блоке стагнации (dQabs2).
+
+
+
+                // 3. Активные узлы: у замороженных сумма проводимостей = 0
+                var nodeG = new double[N];
+                for (int m = 0; m < M; m++)
+                {
+                    if (G[m] <= 0) continue;
+                    if (!aFixed[m]) nodeG[ea[m]] += G[m];
+                    if (!bFixed[m]) nodeG[eb[m]] += G[m];
+                }
+                var active = new bool[N];
+                int Ka = 0;
+                for (int i = 0; i < N; i++)
+                    if (!isBoundary[i] && (nodeG[i] > 0 || capG[i] > 0)) { active[i] = true; Ka++; }
+                var aRow = new int[N];
+                for (int i = 0; i < N; i++) aRow[i] = -1;
+                int c = 0;
+                for (int i = 0; i < N; i++) if (active[i]) aRow[i] = c++;
+
+                if (Ka == 0)
+                {
+                    // v32: сеть без внутренних узлов (только границы) — степени свободы нет,
+                    // расходы однозначны по перепадам граничных давлений (шаг 1 их уже вычислил).
+                    // Это НЕ ошибка: прежде такое решение падало в «все связи разомкнуты» и
+                    // помечало расчёт несошедшимся (эталоны 2/3/5/6 на чистом тесте это ловили).
+                    converged = true;
+                    iter++;
+                    break;
+                }
+
+                // 4. Невязка и якобиан ТОЛЬКО активных узлов (границы исключены)
+                var F = new double[Ka];
+                for (int m = 0; m < M; m++)
+                {
+                    if (G[m] <= 0) continue;
+                    if (!aFixed[m] && active[ea[m]]) F[aRow[ea[m]]] += Q[m];
+                    if (!bFixed[m] && active[eb[m]]) F[aRow[eb[m]]] -= Q[m];
+                }
+                // v33: ёмкость снова в правой части — АККУМУЛЯЦИЯ давления между тиками.
+                // Причина возврата (жалоба технолога на v32, п.2.1): с ёмкостью только в матрице
+                // равновесие тика было строго рёберно-согласованным (ΣQ = 0) — ёмкость вообще
+                // не наполнялась: расход в тупик с открытой линией 0 при дельте ~1 бар,
+                // давление ёмкости «замирало» (3.94 бар и стоит). Неявная схема:
+                // ΣQ + capG·(P−P0) = 0 — рёбра согласованы с ёмкостным стоком, а P ёмкости
+                // двигается по накопленному притоку. Ползучесть v31 не вернётся: перепрыгивание
+                // нуля dp исключено проекцией шага (v32), а сходимость теперь по ПОЛНОЙ невязке
+                // (см. balanceNorm) — неявная точка достижима, рёберного замирания нет.
+                for (int i = 0; i < N; i++)
+                    if (capG[i] > 0 && active[i]) F[aRow[i]] += capG[i] * (P[i] - capP0[i]);
+                var J = new SparseMatrix(Ka);
+                for (int m = 0; m < M; m++)
+                {
+                    if (G[m] <= 0) continue;
+                    int ra = !aFixed[m] ? aRow[ea[m]] : -1;
+                    int rb = !bFixed[m] ? aRow[eb[m]] : -1;
+                    if (ra >= 0) J.Add(ra, ra, G[m]);
+                    if (ra >= 0 && rb >= 0) J.Add(ra, rb, -G[m]);
+                    if (rb >= 0) J.Add(rb, rb, G[m]);
+                    if (rb >= 0 && ra >= 0) J.Add(rb, ra, -G[m]);
+                }
+                // Диагональные члены ёмкостей: якобиан ёмкостного потока = G_cap
+                for (int i = 0; i < N; i++)
+                    if (capG[i] > 0 && active[i]) J.Add(aRow[i], aRow[i], capG[i]);
+                // R37 (ревью QWEN P0-2): асимметричный кавитационный/NPSH член. q = q0(dp)·f(pIn):
+                // ∂q/∂pIn = q0·df/dpIn (>0) — добавляется ТОЛЬКО в диагональ входного узла (строка ra),
+                // симметричная часть (G) уже учтена выше; для NPSH-границы — dqNPSH/dpIn.
+                for (int m = 0; m < M; m++)
+                {
+                    if (G[m] <= 0 || DQdPin[m] == 0.0) continue;
+                    int ra37 = !aFixed[m] ? aRow[ea[m]] : -1;
+                    if (ra37 >= 0) J.Add(ra37, ra37, DQdPin[m]);
+                }
+=== ЛИСТИНГ 3/7: BUDcad_2.2/HydraulicEngine.cs — строки 17–100 (NetworkNodeSpec, NetworkEdgeSpec — начало) ===
+    public class NetworkNodeSpec
+    {
+        public string Key; public int ObjId; public int NozzleId; public NozzleRole Role;
+        public bool IsBoundary; public double BoundaryP;
+        public double Temperature = double.NaN; public double[] MoleFractions;
+        public double HeatLossKV; public double HxKF; public bool HxHotFixed;
+        public double InitialP = double.NaN;
+        public double CapacityM3PerBar;
+
+        /// <summary>Открытая мелкая копия узла. MemberwiseClone — protected (CS1540): вызов
+        /// разрешён только внутри собственного класса; массив долей ссылочный — клонируется здесь.</summary>
+        public NetworkNodeSpec ShallowCopy()
+        {
+            var c = (NetworkNodeSpec)MemberwiseClone();
+            if (MoleFractions != null) c.MoleFractions = (double[])MoleFractions.Clone();
+            return c;
+        }
+    }
+
+    public class NetworkEdgeSpec
+    {
+        public int IndexA, IndexB; public double R; public double Diameter; public double Za, Zb;
+        public int ConnId; public string ConnName = ""; public double InitialQ = double.NaN;
+        public bool IsPipe; public double PipeLength; public double ZetaEq; public bool FrictionGiven; public double FrictionFactor; // v53 (B4): лямбда трубы — для обновления R между пересборками
+        /// <summary>v55.17 (реестр п.98): ζ АРМАТУРЫ при сборке (меняется с ActualOpen) и
+        /// ζ-остаток (колена/ОК/доп.сопр — геометрия). Refresh пересчитывает R по факту.</summary>
+        public double ZetaArm, ZetaRest;
+        /// <summary>v55.18: база R ребра БЕЗ ζ-члена (FrictionToR) — сохраняется при сборке;
+        /// refresh считает R = RBase + LocalR(ζ_факт) — без вычитания из клампнутого R
+        /// (иначе закрытая арматура R=1e14 давала катастрофическое сокращение и «заклёпывало»
+        /// ребро закрытым навсегда — регресс эталона Ramp).</summary>
+        public double RBase;
+        /// <summary>v27: объём трубы (м3) для трассировки вытеснения составов. 0 — внутреннее ребро.</summary>
+        public double PipeVolume;
+        public bool IsPump; public double PumpMaxQ; public double PumpMaxDpPa; public double Density = PhysicalConstants.DefaultDensityKgM3;
+        /// <summary>v34: минимально допустимое давление на всасе, Па (разрыв струи — подача гасится).</summary>
+        public double PumpCavPa;
+        /// <summary>v35: нижний предел напора при перегрузке, % от PumpMaxDpPa (кламп проротации).</summary>
+        public double PumpMinHeadPct = 1.0;
+        // v55.7 (реестр п.23): NPSH — опция кривой требуемого подпора NPSHr(Q) = Base + K·Q² (м, Q в м³/ч).
+        // Доступный подпор NPSHa = (p_всаса − Psat)/(ρ·g), м. NPSHa < NPSHr — подача гасится фактором NPSHa/NPSHr.
+        public bool PumpNpshtEnabled;
+        public double PumpNpshtBaseM = 2.0;
+        public double PumpNpshtCurveK = 0.05;
+        public double PumpNpshtRhoKgM3;
+        public double PumpNpshtPsatPa;
+        // v55.11 (реестр п.87): кламп расхода ГАЗА из Tank/Sep по инвентарю подушки —
+        // сеть не может требовать из подушки больше молей, чем в ней есть (м³/с; 0 = нет).
+        public double GasInvLimitQ;
+        /// <summary>v55.11 (п.87): ёмкость на стороне A ребра (иначе — на B).</summary>
+        public bool GasInvAtA;
+        /// <summary>v55.13 (реестр п.24): индекс АКТИВНОГО ребра эжектора в spec.Edges (для
+        /// контроля ΔP всаса: эжекция работает только при активной струе). −1 — не эжектор.</summary>
+        public int EjectorActiveEdgeIdx = -1;
+        /// <summary>v55.14 (реестр п.42): коэффициент эжекции K = q_пас/q_акт (копия поля объекта
+        /// на suc-ребро — решатель работает без доступа к объектам сцены). 0 — без лимита.</summary>
+        public double EjectorEntrainmentRatio = 1.0;
+
+        // R38 (В.3): ребро-водослив — перелив как часть сети: решатель согласует Q сам (вброс после
+        // Solve и R29-1 демонтированы). Потенциал за тик считает SolveCore (гладкий порог танх-
+        // сатуратором R37); гейт приёмника — в EdgeEval по знаковому dpNet. WeirSign: +1 — ёмкость
+        // на стороне A (водослив вдоль A→B), −1 — на стороне B, 0 — не водослив.
+        public double WeirQPot; public int WeirSign;
+
+        // R39-2 (Р-10, решение владельца 25.11): β-размыкание сифона. PsatPa — давление
+        // насыщенного пара среды трубы (Па; Σ x·Psat(T) по составу источника ребра; 0 — нет данных,
+        // размыкание не применяется). Unprimed — книга прайма ребра (разрыв столба сохраняется
+        // между тиками; гистерезис margin+K тиков ведёт SimulationState.PipeUnprimeTicks).
+        public double PsatPa;
+        public bool Unprimed;
+
+        public bool IsCheckValve;
+        public bool CheckValveReversed;
+        public string CheckValveType; // v45: тип ОК (Log_miss)
+        public double CheckValveLeakageRatio = 0.01;
+        /// <summary>Объект-владелец внутреннего ребра (ConnId&lt;0). 0 — внешняя связь.</summary>
+        public int OwnerObjId = 0;
+        /// <summary>Фактически закрытая арматура на связи (ActualOpen ≤ 0.001) — граф разрывается
+        /// именно по этому признаку, а не по абсолютному R (ревью v21-B4: R зависит от диаметра).</summary>
+        public bool IsClosed;
+=== ЛИСТИНГ 4/7: BUDcad_2.2/HydraulicEngine.cs — строки 171–229 (NetworkSpec, HydraulicNode, HydraulicEdge) ===
+    public class NetworkSpec
+    {
+        public List<NetworkNodeSpec> Nodes = new List<NetworkNodeSpec>();
+        public List<NetworkEdgeSpec> Edges = new List<NetworkEdgeSpec>();
+        public Dictionary<string, int> KeyIndex = new Dictionary<string, int>();
+
+    }
+
+    public class HydraulicNode
+    {
+        public string Key; public int ObjId; public int NozzleId; public NozzleRole Role;
+        public bool IsBoundary; public double BoundaryP;
+        public double Pressure = double.NaN; public double Temperature = double.NaN; public double Imbalance; public bool Isolated;
+        public double HeatLossKV; public double HxKF; public bool HxHotFixed; public double[] MoleFractions; public double[] MassFractions;
+    }
+
+    public class HydraulicEdge
+    {
+        public int ConnId; public string ConnName = ""; public string NodeAKey, NodeBKey; public double R; public double Diameter;
+        public double Q; public double Dp; public double TIn = double.NaN, TOut = double.NaN; public string Mode = "—"; public double[] MoleFractions;
+
+        /// <summary>v2.3-w17 (п.130, разбор Димы кейсы 2–3): давление для выноски трубы.
+        /// При потоке — среднее концов (как раньше); при застое (|Q| ≈ 0) — давление ПИТАЮЩЕЙ
+        /// стороны (макс концов): в закрытой заполненной ветке давление выравнивается к источнику.
+        /// Числа Димы: «P до крана 2,527» при P вых насоса 4,05 и источнике 1,0 — 2,527 ≈ (4,05+1,0)/2
+        /// — это было среднее концов ребра; выноска теперь покажет 4,05. NaN-устойчиво.</summary>
+        public double CalloutPressure(double pa, double pb)
+        {
+            if (double.IsNaN(pa)) return pb;
+            if (double.IsNaN(pb)) return pa;
+            return Math.Abs(Q) < 1e-9 ? Math.Max(pa, pb) : (pa + pb) / 2.0;
+        }
+        public bool IsCheckValve;
+        public string CheckValveType; // v45
+        public bool CheckValveReversed; // v49 (разбор п.9): признак ребра — восстанавливается из снапшота
+        public bool PumpRunningFlag; // v45: пускатель насоса (Log_miss)
+
+        /// <summary>Объект-владелец внутреннего ребра (ConnId&lt;0). 0 — внешняя связь.</summary>
+        public int OwnerObjId = 0;
+        public bool IsPump;
+        public bool IsClosed;
+        public int IndexA = -1, IndexB = -1;
+        public double Za, Zb;        // R39-2 (Р-10): отметки концов ребра — для книги прайма
+        public double PsatPa;        // R39-2 (Р-10): Psat среды трубы — для диагностики/книги
+        public double WeirQPotDiag; public bool UnprimedDiag; // TEMP-DIAG R39-2 (сносится при чистке R40)
+        public double BetaDiag, PHiDiag, PsatDiag; public bool BetaAppliedDiag; // TEMP-DIAG R39-2
+        /// <summary>v27: объём трубы (м3) — из NetworkSpec.</summary>
+        public double PipeVolume;
+        /// <summary>v27: состав выхода обновлён трассировкой в этом тике (транзиентный).</summary>
+        public bool InventoryUpdated;
+        /// <summary>w50 (спринт 1, D4): плотность содержимого трубы — та же ρ, что в R/head
+        /// (апстрим-поток или фаза штюцера). Источник единой истины для молей притока ячейки.
+        /// </summary>
+        public double Density;
+
+        // R38 (В.3): решённая доля водослива со знаком (наружу из ёмкости) и значение гейта
+        // приёмника (0..1) — книга перелива и Э15 читают оба.
+        public double WeirQ; public double WeirGate; public int WeirSign;
+    }
+=== ЛИСТИНГ 5/7: BUDcad_2.2/HydraulicEngine.cs — строки 1046–1077 (SimulateTick: хвост после вызова Solve — ёмкостная фаза, статусы, return) ===
+            // v56 (реестр п.1): колонна-абсорбер — внутренняя физика тарелок ПОСЛЕ решения сети
+            if (result.Errors.Count == 0)
+                ColumnEngine.StepColumns(objects, result, connections, settings, dt, result.Warnings);
+            // v60 (реестр п.120, полный Т3): расчётный терминал — чёрный ящик метода ПОСЛЕ решения сети
+            if (result.Errors.Count == 0)
+                TerminalEngine.StepTerminals(objects, result, connections, dt, result.Warnings);
+            // v84 (КП2.1-В2): решение коллегии — «Converged» в динамике только при ОБА флагах:
+            // NodeBalanceOk (узловая невязка) И StateEquilibrium (max |dM/dt|·dt/M < eps по ёмкостям).
+            // «Сошлось за счёт ёмкости» = валидный режим, но называется «дин. равновесие
+            // (dynamic equilibrium reached)», а не «сошлось». Статика не тронута.
+            result.NodeBalanceOk = result.Converged;
+            // Первый тик (TickCount==0): массы инициализируются (0 → начальное) — прирост не
+            // физический процесс, критерий равновесия к нему не применяем (эталон V553: тик 1).
+            bool seOkV2 = ComputeStateEquilibrium(capBeforeV2, objects, settings.StateEquilibriumEps, out double seMaxV2);
+            if (state.TickCount == 0) { seOkV2 = true; seMaxV2 = 0.0; }
+            result.StateEquilibrium = seOkV2;
+            result.StateEquilibriumMax = seMaxV2;
+            // w12 (f2, К1-семантика — РЕШЕНИЕ ВЛАДЕЛЬЦА 03:3x 18.11, пере-эталонирование В2):
+            // «дин. равновесие» = NB=true && SE=false — сеть сошлась честно, дисбаланс поглощён
+            // аккумулятором масс (валидный рабочий режим, а не отказ). NB=false → всегда «НЕ СОШЛОСЬ».
+            // Converged = NodeBalanceOk (без SE): SE идёт отдельным примечанием, не блокирует статус.
+            if (settings.SimMode)
+            {
+                result.Converged = result.NodeBalanceOk;
+                result.ConvergenceNote = result.StateEquilibrium
+                    ? null
+                    : "dynamic equilibrium reached: невязка узлов в допуске, дисбаланс поглощён аккумулятором масс";
+            }
+            else { result.StateEquilibrium = true; result.ConvergenceNote = null; }
+            if (result.Errors.Count == 0) { state.SimulationTime += dt; state.TickCount++; }
+            if (settings.SimMode && settings.AddNoise) ApplyNoise(result, settings.NoiseAmplitude);
+            return result;
+        }
+=== ЛИСТИНГ 6/7: BUDcad_2.2/HydraulicEngine.cs — строки 1808–1885 (BuildNetwork: начало, расчёт CapacityM3PerBar) ===
+        public static NetworkSpec BuildNetwork(List<SceneObject> objects, List<SceneConnection> connections, HydraulicSettings settings, HydraulicResult diag)
+        {
+            NetworkRebuilds++; // v55.17 (реестр п.98)
+            var spec = new NetworkSpec();
+            var keyIndex = spec.KeyIndex;
+            var byId = new Dictionary<int, SceneObject>();
+            int negId = 0;
+            foreach (var o in objects) { if (!byId.ContainsKey(o.Id)) byId[o.Id] = o; }
+
+            foreach (var o in byId.Values)
+            {
+                o.EnsureDefaultNozzles();
+                // v48 (оформление п.4): датчик, «посаженный» на трубопровод, НЕ создаёт узлов —
+                // его связи выпадают из сети, показания снимаются с точки связи.
+                if (o.Kind == ObjectKind.Sensor && o.SensorOnPipe) continue;
+                foreach (var nz in o.Nozzles)
+                    AddNode(spec, keyIndex, $"{o.Id}:n{nz.Id}", o.Id, nz.Id, nz.Role);
+
+                // Ёмкость узлов для динамики C·dP/dt (Спринт 2б): только объёмные аппараты
+                if (o.Kind == ObjectKind.Tank || o.Kind == ObjectKind.Separator || o.Kind == ObjectKind.Reactor || o.Kind == ObjectKind.Column)
+                {
+                    double vTot = Math.Max(0.0, o.Volume);
+                    double vLiq = Math.Max(0.0, Math.Min(1.0, o.LiquidLevel)) * vTot;
+                    double vGas = Math.Max(0.01 * vTot, vTot - vLiq);
+                    double pGas = Math.Max(0.05, o.GasPressure);
+                    double cap = vGas / Math.Max(0.05, pGas) + vLiq * 5e-5;
+                    foreach (var nz in o.Nozzles)
+                    {
+                        string capKey = $"{o.Id}:n{nz.Id}";
+                        int ni = keyIndex[capKey];
+                        spec.Nodes[ni].CapacityM3PerBar = cap / Math.Max(1, o.Nozzles.Count);
+                    }
+                }
+            }
+
+            foreach (var s in spec.Nodes)
+            {
+                if (!byId.TryGetValue(s.ObjId, out var o)) continue;
+                if (o.Kind == ObjectKind.TerminalPoint) { s.IsBoundary = true; s.BoundaryP = o.Pressure; s.Temperature = o.Temperature; s.MoleFractions = TemperaturePropagator.MoleFromComposition(o); }
+                // v59 (реестр п.120, Т3): порты расчётного терминала — граничные узлы сети (P/T объекта).
+                // Семантика v1: порт = независимая крайняя точка; пересчёт выражениями — после
+                // утверждения семантики владельцем (отдельный этап, реестр).
+                else if (o.Kind == ObjectKind.CalcTerminal)
+                {
+                    // v60 (п.120, полный Т3): при сборке сети — та же семантика per-port
+                    s.IsBoundary = true;
+                    var nzT60b = o.Nozzles != null ? o.Nozzles.FirstOrDefault(nn => nn != null && nn.Id == s.NozzleId) : null;
+                    string portN60b = nzT60b != null ? (nzT60b.Name ?? "").Trim() : "";
+                    var pv60b = (o.TerminalPortValues ?? new List<TerminalPortValue>())
+                        .FirstOrDefault(v => v != null && string.Equals(v.PortName, portN60b, StringComparison.Ordinal));
+                    bool isOut60b = (o.TerminalPorts ?? new List<TerminalPortSpec>())
+                        .Any(pp => pp != null && string.Equals(pp.Name, portN60b, StringComparison.Ordinal) && !pp.IsInput);
+                    if (isOut60b && pv60b != null && pv60b.P > 0) s.BoundaryP = pv60b.P; else s.BoundaryP = Math.Max(0.05, o.Pressure);
+                    s.Temperature = (isOut60b && pv60b != null && pv60b.T != 0) ? pv60b.T : o.Temperature;
+                    // v61 (R1): состав out-порта — вычисленный метод (Y1..Y40), если назначен
+                    if (isOut60b && pv60b != null && pv60b.Comp != null && pv60b.Comp.Count > 0 && pv60b.Comp.Sum() > 1e-12)
+                        s.MoleFractions = pv60b.Comp.ToArray();
+                    else
+                        s.MoleFractions = TemperaturePropagator.MoleFromComposition(o);
+                }
+                else if (s.Role == NozzleRole.HxHotIn && !double.IsNaN(o.HxHotTemperature)) { s.Temperature = o.HxHotTemperature; s.HxHotFixed = true; }
+                else if (s.Role == NozzleRole.FurnaceFuel)
+                {
+                    // v35 (ревью 1.14): при подключённой топливной линии узел НЕ граничный —
+                    // давление задаёт реальная сеть; без подключения — фиксированный источник 1.5 бар.
+                    var fuelConn = connections.FirstOrDefault(c => c.ToId == s.ObjId && c.ToNozzleId == s.NozzleId);
+                    // v50 (этап 2, замечание технолога): «самоподсасывающие горелки» — печь ТЯНЕТ
+                    // топливо из подключённой линии: узел ГРАНИЧНЫЙ с давлением топки (~1 бар).
+                    // Раньше узел оставался внутренним тупиковым — расход в топливной линии
+                    // был всегда 0, печь «не горела» и поток не нагревался.
+                    s.IsBoundary = true;
+                    s.BoundaryP = (fuelConn == null) ? 1.5 : 1.0;
+                    s.Temperature = 20;
+                    var fuelSrc = (fuelConn != null && byId.TryGetValue(fuelConn.FromId, out var fsrc)) ? fsrc : null;
+                    var fx = (fuelSrc != null) ? TemperaturePropagator.MoleFromComposition(fuelSrc) : null;
+                    if (fx == null && o.FurnaceConfig != null && o.FurnaceConfig.HasFuelGas) fx = DefaultFuelMole();
+                    s.MoleFractions = fx;
+                }
+=== ЛИСТИНГ 7/7: BUDcad_2.2/HydraulicEngine.cs — строки 2685–2792 (Solve: хвост — MaxImbalanceRel, NodeBalanceOk, пост-обработка, return res) ===
+            for (int u = 0; u < N; u++)
+            {
+                var hn = res.Nodes[u]; if (hn.Isolated || hn.IsBoundary) continue;
+                double inflowRel = 0, outflowRel = 0;
+                foreach (var ei in adjacency[u]) { var e = res.Edges[ei]; double qh = e.Q * 3600.0; if (e.NodeBKey == hn.Key) inflowRel += qh; else if (e.NodeAKey == hn.Key) outflowRel += qh; }
+                maxImbRel = Math.Max(maxImbRel, Math.Abs(inflowRel - outflowRel) / Math.Max(Math.Max(inflowRel, outflowRel), 1e-9));
+            }
+            res.MaxImbalanceRel = anySolvable ? maxImbRel : 0;
+            // w12 (f1, К2 коллегии): ГИБРИДНЫЙ критерий узлового баланса — |imb| узла ≤
+            // max(absTol, relTol·max(inflow,outflow), Qfloor). Убирает ложное «НЕ СОШЛОСЬ»
+            // в численной мёртвой зоне застоя (лог Димы 17.11: фактический дисбаланс 0, а
+            // ε решателя 1.18e-6 при допуске 1e-6 — тик-чередование статусов). relTol=1e-4,
+            // absTol=1e-3 м³/ч, Qfloor=0.01 м³/ч — целевые числа на добро владельца.
+            {
+                bool perNodeOk = true;
+                for (int u = 0; u < N; u++)
+                {
+                    var hn = res.Nodes[u]; if (hn.Isolated || hn.IsBoundary) continue;
+                    double inf2 = 0, out2 = 0;
+                    foreach (var ei in adjacency[u]) { var e2 = res.Edges[ei]; double qh = e2.Q * 3600.0; if (e2.NodeBKey == hn.Key) inf2 += qh; else if (e2.NodeAKey == hn.Key) out2 += qh; }
+                    double tol2 = Math.Max(1e-3, Math.Max(1e-4 * Math.Max(inf2, out2), 0.01));
+                    if (Math.Abs(inf2 - out2) > tol2) perNodeOk = false;
+                }
+                res.NodeBalanceOk = allConverged || perNodeOk;
+                // К2: MaxImbalanceRel учитывается в вердикте — фактический баланс в допуске,
+                // даже если решатель не дожал ε (мёртвая зона застоя) — сходимость признаётся.
+                if (perNodeOk && !allConverged) res.Converged = true;
+            }
+            // v85 (КП2.1-В8): честная пометка достоверности Psat + гейт-провалы констант в Warnings.
+            res.PsatConfidenceNote = PsatConfidenceNote(objects);
+            foreach (var gv in ComponentLibrary.PsatGateViolations)
+                if (!res.Warnings.Contains(gv)) res.Warnings.Add(gv);
+
+            foreach (var e in res.Edges)
+            {
+                var a = (e.IndexA >= 0) ? res.Nodes[e.IndexA] : res.FindNode(e.NodeAKey);
+                var b = (e.IndexB >= 0) ? res.Nodes[e.IndexB] : res.FindNode(e.NodeBKey);
+                if (a != null && b != null && !double.IsNaN(a.Pressure) && !double.IsNaN(b.Pressure)) e.Dp = a.Pressure - b.Pressure;
+                double v = Math.Abs(e.Q) * 4.0 / (Math.PI * Math.Pow(Math.Max(1e-9, e.Diameter), 2));
+                e.Mode = Math.Abs(e.Q) < 1e-9 ? "застой" : (v < 0.03 ? "ламинарный" : "турбулентный");
+            }
+
+            // ─── v2.3-w18: пост-обработка 127 ч.2б + п.124 (до Propagate, чтобы выноски видели клампы) ───
+            try
+            {
+                foreach (var fo in byId.Values.Where(x => x != null && x.Kind == ObjectKind.Furnace))
+                {
+                    var fuelNode18 = res.Nodes.FirstOrDefault(n => n.ObjId == fo.Id && n.Role == NozzleRole.FurnaceFuel);
+                    var airNode18 = res.Nodes.FirstOrDefault(n => n.ObjId == fo.Id && n.Role == NozzleRole.FurnaceAir);
+                    if (fuelNode18 == null || airNode18 == null) continue;
+                    double qFuel18 = res.Edges.Where(e => e.NodeBKey == fuelNode18.Key).Sum(e => Math.Max(0.0, e.Q)); // м³/с
+                    if (qFuel18 <= 1e-12) continue;
+                    var moleF18 = fuelNode18.MoleFractions;
+                    if (moleF18 == null) continue;
+                    double o2F18 = FurnaceEngine.O2MolPerMol(moleF18);
+                    double airPerFuel18 = (1.0 / 0.21) * o2F18; // моль возд./моль топлива (объёмные доли те же)
+                    double lambda18 = FurnaceEngine.AIR_EXCESS_LAMBDA;
+                    double qAirMax18 = qFuel18 * airPerFuel18 * lambda18;
+                    var airEdges18 = res.Edges.Where(e => e.NodeBKey == airNode18.Key).ToList();
+                    double qAirNow18 = airEdges18.Sum(e => Math.Max(0.0, e.Q));
+                    if (qAirNow18 > qAirMax18 * 1.0001 && qAirNow18 > 1e-12)
+                    {
+                        double scale18 = qAirMax18 / qAirNow18;
+                        foreach (var ae in airEdges18) if (ae.Q > 0) ae.Q *= scale18;
+                        res.Warnings.Add($"Печь «{fo.Name}»: расход воздуха ограничен потребностью сгорания (λ={lambda18:0.##}): было {qAirNow18 * 3600:0.#} м³/ч, стало {qAirMax18 * 3600:0.#} м³/ч (стехиометрия состава топлива).");
+                    }
+                }
+            }
+            catch (Exception exA18) { res.Warnings.Add("Кламп воздуха печи: " + exA18.Message); }
+
+            try
+            {
+                // п.124 (демпфер): при застое насосного ребра (|Q|≈0) всас «отсасывает» невязку
+                // (у Димы P вх = 1,05 при источнике 1,0 — обратный ток через ребро насоса R=1e3).
+                // Выравнивание: если ВСЕ внешние рёбра узла всаса застойные и среди соседей есть
+                // граница — P всаса := макс давление граничных соседей (статическое выравнивание).
+                foreach (var pe18 in res.Edges.Where(e => e.IsPump && Math.Abs(e.Q) < 1e-9))
+                {
+                    var su18 = res.FindNode(pe18.NodeAKey);
+                    if (su18 == null || su18.IsBoundary) continue;
+                    bool hasLive = false; double pMax18 = double.NaN;
+                    foreach (var se18 in res.Edges)
+                    {
+                        if (ReferenceEquals(se18, pe18) || se18.IsPump) continue;
+                        string otherK18 = se18.NodeAKey == su18.Key ? se18.NodeBKey : (se18.NodeBKey == su18.Key ? se18.NodeAKey : null);
+                        if (otherK18 == null) continue;
+                        if (Math.Abs(se18.Q) >= 1e-9) { hasLive = true; break; }
+                        var other18 = res.FindNode(otherK18);
+                        if (other18 != null && other18.IsBoundary)
+                            pMax18 = double.IsNaN(pMax18) ? other18.Pressure : Math.Max(pMax18, other18.Pressure);
+                    }
+                    if (!hasLive && !double.IsNaN(pMax18)) su18.Pressure = pMax18;
+                }
+            }
+            catch (Exception exD18) { res.Warnings.Add("Демпфер застойного насоса: " + exD18.Message); }
+
+            TemperaturePropagator.Propagate(res, adjacency, settings, byId, settings.SimMode ? 10 : 200, state);
+
+            for (int i = 0; i < spec.Edges.Count; i++)
+            { var he = res.Edges[i]; var a = (he.IndexA >= 0) ? res.Nodes[he.IndexA] : null; if (a != null && a.MoleFractions != null) dyn.Density[i] = CalculateDensity(a.MoleFractions, a.Temperature, a.Pressure, settings.UsePR); } // v65+v70: живая Density в dyn, PR — из снапшота настроек
+
+            // v55.13 (реестр п.24): отчёт струи эжектора (первый тик / смена режима)
+            ReportEjectorJets(res, objects);
+            return res;
+        }
