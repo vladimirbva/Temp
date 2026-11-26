@@ -1,0 +1,3136 @@
+' LH3 CONVERT v30 (26.11.2026) - м2 -> м2.5+LH1+LH3v4+v21+ФВ1 (база v29)
+' НОВОЕ В v30 (26.11): Ф43 - прогресс/форма: после финального MsgBox добавлены
+'      PrPro 100 "Готово!" и Unload ufProgress (форма висела на экране после завершения).
+'      Прогресс в проходах и Unload на ранних выходах были и остаются как в основном
+'      генераторе. Алгоритм конверсии и выхлоп НЕ меняются.
+'      Всё остальное v29 (Ф42 - U4-гейт; Ф41/Ф41-б - канарейка) без изменений.
+'=====================================================================
+'=====================================================================
+' LH3 CONVERT v29 (26.11.2026) - м2 -> м2.5+LH1+LH3v4+v21+ФВ1 (база v28)
+' НОВОЕ В v29 (26.11): Ф42 - U4-интеграция (Utilite_4 GDC v1.01, лист U4):
+'      путь папки юнитов берётся из ячейки C4 листа U4 (Public U4_PTH модуля U4_UI v1);
+'      если U4_PTH непустая - диалог выбора папки пропускается; после прогона U4_UI
+'      сбрасывает U4_PTH. ТРЕБУЕТСЯ модуль U4_UI в проекте (Option Explicit: U4_PTH
+'      объявлен только там). Без U4 - прежний диалог.
+'      Всё остальное v28 (Ф41/Ф41-б - канарейка) без изменений. Выхлоп не меняется.
+'=====================================================================
+'=====================================================================
+' LH3 CONVERT v28 (26.11.2026) - м2 -> м2.5+LH1+LH3v4+v21+ФВ1 (база v27)
+' НОВОЕ В v28 (26.11, замечание СС: ложный FAIL канарейки Ф36.2 - конвертация блокировалась):
+'  Ф41. Канарейка L1_CanaryPowers: эталон ПРОВЕРКИ 1 считается через Log(2.7182) в рантайме,
+'      а не константой 0.9999698915. Причина: константа округлена с погрешностью 5.04e-9
+'      (верно ...96539, в коде ...91500), отн. расхождение lhs/rhs = 1.16e-9 против порога
+'      1.0e-9 - FAIL "на волосок", Exit Sub не выпускал конвертацию. С Log-эталоном
+'      расхождение ~1e-16 - канарейка проверяет математическое тождество, а не константу.
+'  Ф41-б. ПРОВЕРКА 1б: Abs(0.9999698915 - Log(2.7182)) <= 1e-8 абс. - ловит подмену
+'      константы, не ловя её собственную погрешность.
+'  Константа LH3_LNG2E в выхлопе НЕ менялась - байтовая сверка выхлопа с эталонами 1:1
+'      сохраняется (отн. точность эмита 1.2e-9 достаточно; смену константы - отдельное
+'      решение владельца).
+'  Канарейка CG4 (F21PowExpCanary, Ф37.4) проверена ассистентом: эталон Log(a) в рантайме -
+'      замечание СС к LH3 на CG4 не распространяется.
+'=====================================================================
+' LH3 CONVERT v27 (26.11.2026) - м2 -> м2.5+LH1+LH3v4+v21+ФВ1 (база v26)
+' НОВОЕ В v27 (26.11, по полному аудиту CC (2-й ход) - принят ассистентом):
+'  Ф40. Удалён дубль proc-level Log в диспетчере L2_Disp: две подряд одинаковые
+'      "L2_PushL out, m, ocap, lg" - каждая разрезанная часть печатала Log(' ... SUCSESS ')
+'      дважды (дефект класса R4, наследие v4). В LH2/CG4 чисто. Удалена вторая строка.
+'  Всё остальное v26 (Ф36.1/Ф36.2) без изменений.
+'=====================================================================
+' LH3 CONVERT v26 (26.11.2026) - м2 -> м2.5+LH1+LH3v4+v21+ФВ1 (база v25)
+' НОВОЕ В v26 (26.11, по принятому ответу CC на TASK_1 (e4c1); аудит ассистента - по выхлопам 792/799):
+'  Ф36.1. Исправлен баг С1а-1 (Power->Exp) в L1_FixPowers - ГЛАВНАЯ причина расходного
+'      расхождения м2.5 (+26%...+487% по насосам, плато расходов смещено):
+'    - общий случай: заменяются ТОЛЬКО вызовы с основанием-константой 2.7182
+'      (критерий L1_IsEBase: точное Trim(a1)="2.7182"); прочие основания - в т.ч.
+'      ((po_p+1)/(pi_p+1)) в насосных aa04 и 2.72 в SH_C - НЕ заменяются, Power остаётся
+'      как есть (ранее Ln(a) подменялся константой LNG2E);
+'    - ветка "показатель начинается с буквы": НЕ заменяется (в v4-v25 эмитилась
+'      Exp(a1*LH3_LNG2E) - ПОТЕРЯН показатель a2);
+'    - С0-2 (a2=2 -> (a1)*(a1)) и С1а-2 (a2=0.5 -> Sqrt) не тронуты;
+'    - счётчики конверторные: L1_cnt_POWFIX (оставлено Power), L1_cnt_EXP2 (корректных
+'      Exp-замен) - в итоговой сводке конвертации;
+'  Ф36.2. Канарейка L1_CanaryPowers при старте конвертации: тождество Power(2.7182,b)
+'      =Exp(b*LNG2E) (tol 1e-9 отн.), КРИТЕРИЙ основания (2.7182 -> True; 2.72 и
+'      выражения -> False), контрпример Power(2,0.23) vs Exp(0.23*LNG2E) - должны
+'      расходиться. FAIL -> отказ конвертации (Exit Sub).
+'  ОТКЛОНЕНИЕ ОТ ПОСТАНОВКИ CC: счётчики - VBA-модульные с выводом в сводку конвертации,
+'      НЕ выхлопные LH3_cnt_*: инкремент нельзя вставить в середину выражения, а HEALTH-печать
+'      счётчиков реализована в LH1-скане (не трогали - это была бы новая версия LH1).
+'  Ожидание прогона v26: в _LH3 исчезают незаконные Exp (насосные aa04 остаются Power,
+'      aa06 - только легальные замены основания 2.7182), м2.5 возвращается к поведению м2
+'      (|dF| 9.47->0.05, плато ~62 т/ч).
+'=====================================================================
+' LH3 CONVERT v25 (25.11.2026) - м2 -> м2.5+LH1+LH3v4+v21+ФВ1 (база финальной v23)
+' НОВОЕ В v25 (25.11, по логу расходов заказчика 25.11):
+'  Ф33. Снята Т-2/Т-1-обёртка расходов целиком (SW_T2=0): условия веток сгенерированы
+'      с противоречием (X<100*e27 AND X>100*e27) и дублем (X<100 AND X<100) - ветка 2
+'      всегда срабатывала и гасила Fc_r/Fctr к нулю (замкнутый цикл мёртвого запуска):
+'      расходы в контрольных точках = 0 при любых действиях кранами. Возврат эталонной
+'      безусловной формы FR_C + Fc_r + Fctr (как в 792-LH1). Корр-форма v16 Ф23
+'      (corr=1-p*(1-p)) уходит вместе с обёрткой.
+'  Ф34. Счётчик Ф0-1 'OI вызовов': вместо точной строки procedure T_Hmodel_UPDT2_0.OI(...)
+'      - паттерн ^procedure <класс>.OI(u1..Pfact: Double);$ (класс из входа; в Петрофаке
+'      T_Hmodel_UKR_0 - флаг oiProc не вставал, инкремент LH3_cnt_OI не генерировался).
+'  Ф35. Снята B2-печать XX0[12] (v16 Ф25, SW_B2P=0): 88% строк лога - засорение
+'      (7254 из 8241 в журнале заказчика).
+'  Не тронуто: OIfail-вставки (точные строки тела OI - в Петрофаке тело иное, без m2-входа
+'      Петрофака совпадение не проверить), freeze-стражи (21 узел 'вне диапазона' только
+'      в первые секунды старта, дальше не повторяются).
+' ФВ1 (v24): реестр виновников NaN обнуляется при чистых зеркалах - 'виновники' только текущего скана (решение владельца 25.11)
+'=====================================================================
+'=====================================================================
+' НОВОЕ В v21 (24.11 21:2x, по отзыву заказчика: [DCC Error] un_hmodel_ukr.pas(6247)
+'      E2072 "Procedure too complex, it requires too many registers" - цель замечания
+'      Work_12c, самая большая процедура комплекта (10611 строк)):
+'  Ф32. КЛЮЧЕВОЙ: в-блочная резка монолитных блоков (приём владельца 24.11, тот же
+'      что в м2-генераторе при делении C#-монолита: блоки с открытием/закрытием
+'      tup_ind-условия и без). Ф20 не резал Work_12c и WorkZerob: всё их тело
+'      сидит внутри ОДНОГО "if (tup_ind=...) then begin ... end;" - точек разреза
+'      dd=0 нет (кроме конца), ветка "разрез невозможен" (L959). Две ветки Ф32:
+'  Ф32а. Монолитный блок > 4000 строк БЕЗ многострочных циклов: резка на куски с
+'      дублированием условия: между кусками вставляются закрывающий "end;"
+'      (копия) + КОПИЯ условных строк блока (if ... begin). Семантика сохраняется,
+'      т.к. условие не зависит от тела (стражи ниже). Деклараций и диспетчера НЕ
+'      нужно - резка внутри тела той же процедуры. kerr не дублируется.
+'  Ф32б. Монолитный блок > 4000 строк С многострочным циклом (for/while с begin в
+'      строке, end позже): дублирование условия цикла НЕЛЬЗЯ (счётчик меняется
+'      внутри). Тело цикла (искать на ЛЮБОЙ глубине: тело цикла = строки между
+'      открывателем и возвратом глубины к значению перед циклом) выносится в
+'      N частей-процедур (механизм Ф20/LH2 v22, вызовы частей ВНУТРИ цикла),
+'      декларации частей - в interface через di0/inIdx/inTxt как в Ф20.
+'      N = ceil(длина тела цикла / 4000) - раньше в блок-переростке было жёстко 2.
+'  Стражи Ф32а: (а) переменные условия присваиваются внутри блока - блок НЕ режется
+'      (в лог); (б) односторония цикл-строка (for/while/case без begin/repeat и без
+'      end/until в той же строке) - блок НЕ режется (в лог).
+'  Проверка v21 на комплекте 19.11: 12c - блок 10600 строк, весь объём внутри
+'      while (9489 строк) -> Ф32б: 3 части по ~3163; WorkZerob - блок 8811 строк,
+'      циклов нет, 6138 точек реза, макс. зазор 19 -> Ф32а: 3 куска по ~2938.
+'  Примечание: выхлоп, полученный заказчиком, собран прогоном 23.11 8:55/9:17
+'      (v13/v14) - ДО порта Ф20 (v15 23.11 20:0x): в выхлопе нет ни одной Ф20-резки
+'      (Init1 7081 строк целая, 12c целая, маркеры "часть N из" - от входа м2).
+'      Нужен НОВЫЙ ПРОГОН v21 над входом 19.11 и новый комплект заказчику.
+'=====================================================================
+' НОВОЕ В v20 (23.11 22:2x, по выхлопу v19: дублей dP_r=0, лишних скобок Т-2=0,
+'      НО членов якобиана С4-1 - 0):
+'  Ф31. КЛЮЧЕВОЙ: извлечение корр/дельты/индекса в С4-1 переведено на ЧИСТЫЙ VBA
+'      (InStr/InStrRev/Mid) - RegExp в этой ветке больше не участвует вовсе:
+'      c21 = сегмент между ']:=' и последним '*Sqrt(Abs(' (InStrRev);
+'      d21 = сегмент между 'Sqrt(Abs(' и ближайшим '))';
+'      k21 = индекс между 'dP_r[' и ']' (InStr);
+'      гард 'корр=1' - по InStr ':=Sqrt(Abs('. При неудаче - только nCIfail (MsgBox).
+'  Ф31-а. Условие ветки С4-1: вместо проверки через L4_M - чистая проверка
+'      Left(Trim(s), 5) = "dP_r[" - ветка больше не зависит от движка RegExp.
+'      (Если у вас ветка не заходила из-за непринятого паттерна - теперь зайдёт.)
+'=====================================================================
+'
+'=====================================================================
+' НОВОЕ В v19 (23.11 22:1x, по ошибке владельца уже на re.Test):
+'  Ф30. Та же защита Ф27 (перехват ошибки, лог паттерна в LH3_convert_debug.log,
+'      деградация вместо падения) распространена на ВСЕ оставшиеся места с RegExp:
+'      L4_M (re.Test - -> False), L4_Re (Pattern/Execute/Replace - -> исходная строка)
+'      и локальный поиск Tc*-имени у Tprev (Test/Execute - -> пропуск).
+'      Плюс: проверка CreateObject - если объект RegExp недоступен, лог и возврат
+'      пустого результата вместо ошибки 91.
+'  Теперь любое непринятое правило РЕГИСТРИРУЕТСЯ, а не роняет прогон. Если ошибка
+'      останется - пришлите текст ошибки и LH3_convert_debug.log: там будет паттерн.
+'=====================================================================
+
+'=====================================================================
+' НОВОЕ В v18 (23.11 22:0x, по ошибке владельца у re.Execute):
+'  Ф27. L4_SM защищён: перед re.Pattern/re.Execute - перехват ошибки; при сбое паттерна
+'      (или объекта) в LH3_convert_debug.log пишется ПАТТЕРН и номер ошибки, L4_SM
+'      возвращает "" - прогон НЕ падает, а проблемные места деградируют до
+'      "строка как есть" (Т-2/С4-1 с гардами) и становятся видны в логе.
+'  Ф28. Паттерн c21/гард С4-1: [0-9] без квантификатора (опечатка сборки v17) -> [0-9]+.
+'  Ф29. Ф26-паттерн Т-2: хвост ([^,]+)\\) заменён на ([^,)]+) - класс символов без ')',
+'      хвостовая скобка в паттерне не нужна вовсе (надёжно при любой трактовке '\\(')
+'  Примечание: блоки «НОВОЕ В v16/v17» не печатались из-за рассинхрона длины строк-рамок
+'      (косметика, не механика); все их фиксы в модуле есть - см. PSR.
+'=====================================================================
+' НОВОЕ В v15 (23.11 20:0x, по отчёту владельца о прогоне v14):
+'  Ф19. КЛЮЧЕВОЙ: дубль деклараций XX0/ZZ0/ISTO_p (FPC 'Duplicate identifier
+'      XX0: array[1..200]') - перехват перенесён В НАЧАЛО итерации: первая строка-
+'      декларация запоминается per-файл (флаги dXX0/dZZ0/dISTO ставятся ДО любой
+'      ветки печати), любая последующая декларация с тем же именем ПРОПУСКАЕТСЯ
+'      (лог DUB-SKIP в LH3_convert_debug.log) - независимо от пути печати.
+'      Раньше страж стоял только в Out4 и не ловил дубль, пришедший мимо него.
+'      Плюс: триггер вставки блока деклараций требует, чтобы строка НАЧИНАЛАСЬ
+'      с XX0:/ZZ0:/ISTO_p: (раньше ловились комментарии с этими словами внутри).
+'  Ф20. КЛЮЧЕВОЙ: в LH3 НЕ БЫЛО a/b-разбиения процедур (оно есть только в LH2) -
+'      тело WorkZero после вставок стражей/С4-4 переросло лимит FPC ('Procedure
+'      too complex, too many registers' - прогон владельца 23.11). Порт разрезания
+'      из LH2 v37 ДОСЛОВНО (L2_Split/L2_Disp/хелперы; Ф14/Ф15 учтены): пост-проход
+'      ПОСЛЕ вставок, безоговорочное a/b для процедур БЕЗ параметров (решение
+'      владельца из v27: 'при любой длине тела'), N-частичное разбиение тел > 6000
+'      строк, локалы -> поля класса, for-счётчики -> глобальные var юнита (Ф12),
+'      диспетчер Work -> слоты (AB_SLOT=53). Процедуры С ПАРАМЕТРАМИ не режутся
+'      (Ф14): части теряют параметры - FPC 'Identifier not found'. WorkZero
+'      параметров не имеет - режется. Счётчики - в MsgBox.
+'=====================================================================' ФИКС ПО ПРОГОНУ v13 (04:14): структурная ошибка вставки в v13 — тело ветки R3 (nCI+GoTo)
+'  уехало в ветку 1.33, а R3-ветка осталась пустой (однострочный If с пустым телом — условие
+'  срабатывает, строка печатается как есть): ручка 1.015 осталась в выхлопе (325 строк).
+'  Теперь: тело R3 возвращено в ветку R3 (ручка 1.015 удаляется), строка 1.33 ПЕЧАТАЕТСЯ
+'  (ручка ОИ-петли сохраняется — иначе меняется поведение ОИ-петли) с сбросом inLoop.
+
+'
+' ФИКСЫ ПО ПРОГОНУ v12 (04:03 23.11, сверка 8 выхлопов _LH3):
+'  1) Ручка 1.015*XX0[53 НЕ удалялась: паттерн был по м4-форме без "]", а в м2-входе строка
+'     «aa3:=aa3*1.015*XX0[53];» (с "]") — паттерн заменён на «\]?» (опциональная "]").
+'  2) Ложные члены якобиана в ОИ-петлях и после них: маркер «aa3:=aa3*1.33*XX0[53» (ОИ-петля)
+'     теперь сбрасывает inLoop=False — члены вставляются только в ТУБ-петлях.
+'  3) Конфликт kerr-кодов с Т-2-вставками v4 (-971 ноль / -972 корректор) — мои коды переведены
+'     на свободные: R1-Ci -959, R1-aa3 -958, R4-член -957, R5 -956.
+
+'
+' ИСПРАВЛЕНИЯ В v12 (23.11 04:00): «Invalid procedure call» на mc(0).SubMatches(idx):
+'  4 вызова L4_SM с idx=1 при одной группе (SubMatches 0-based) — все мои v10-вставки:
+'    curTubeP-tn (^aa2:=...), R1-mN (^aa3:=...), R4-k (^dP_r[...]), R4-delta (Power(Abs(...)))
+'    -> idx=0. Корректные idx=1 (2 группы) сохранены: R4-корр, FR_C.
+'  Guard в L4_SM: при отсутствии группы SubMatches(idx) возвращает "" вместо Err 5.
+'  (Осторожно: с guard ошибки idx-типа невидимы — эмит с пустыми именами; вносимые правила
+'   исправлены правильно, guard — только страховка на будущие.)
+
+'
+' ИСПРАВЛЕНИЕ В v11 (23.11 03:5x): компиляционная ошибка «Expected array» на
+'  «tnm = Trim(args(6))» — Dim args As String -> Dim args() As String (правило С1а-4, v7);
+'  добавлена защита: при UBound(args)<6 строка ОИ пропускается как есть.
+
+'
+' НОВОЕ В v10 (23.11, партия Шага 4) — РЕШЕНИЕ ВЛАДЕЛЬЦА: вариант Б СРАЗУ, БЕЗ ФЛАГОВ:
+'  С4-1 (физический якобиан) + С4-4 (ёмкость в петлю) — канон LH3.
+'  Замены в каждой ТУБ-петле:
+'    aa3:=(e27+?U_ri)/aa1 -> блок LH3_Ci (C_i по фазам: газ mG_r/(P+1); жидкость mL_r/21700;
+'         смешанная; пороги eG>0.99/eG<0.01 из ОИ — решение В5) + aa3:=e27.
+'    Ручки XX0[55]/10 и 1.015*XX0[53 — удалены.
+'    После dP_r[k] — физический член якобиана: aa3:=aa3+U_ri[N,k]*корр*0.5/(Sqrt(Abs(dP))+0.01)
+'    (та же форма, что в CG4-сборке NGJ; kerr -971).
+'    Шаг -> R/J-форма: LH3_R:=aa1+LH3_Ci*(aa2-P)*3600*MAIN_c/SK_L; LH3_J:=aa3+LH3_Ci*3600*MAIN_c/SK_L;
+'         aa2:=aa2-W_damp*LH3_R/(LH3_J+e27) (kerr -974).
+'  Формула C_i — предложена ассистентом (mG_r/mL_r, K_ж=21700, P_abs=P+1), НЕ подтверждена
+'  владельцем (В2 «-») — сверить при приёмке.
+'  С4-5 (тепловая инерция) — ОТЛОЖЕНО (В4). С4-1 без С4-4 не вносится — согласовано (В3).
+'  Критерий выхода остаётся относительным (v4 F11). МЕНЯЕТ ЧИСЛА СИЛЬНО — эталонная сверка обязательна.
+
+'
+' НОВОЕ В v7 (23.11, партия Шага 1):
+'  С1а-4: tst-гейт на ОИ куба - вызовы ОИ испарения/конденсации накопленного уровня/пара
+'  (8 без гейта: e_303b/e_303a/e2_504/ec3_501 и др.) обёрнуты tst:=0; if(T>800) tst:=1;
+'  if(T<-120) tst:=1; if (tst=0) then OI(...). При T в диапазоне числа совпадают с м2;
+'  вне диапазона - ОИ не вызывается (м2 вызывал с экстраполяцией). SW_TST=1 дефолт.
+'  С1б-4 B10/B11: клампы dL с SK_L (dL:=0.55*SK_L и dL:=-0.55*SK_L, условие нижнего клампа
+'  dL<-0.55*SK_L). При SK_L=1 числа совпадают; при SK_L<>1 - меняются (МЕНЯЕТ ЧИСЛА).
+'  SW_SKL=1 дефолт; РИСК: при SK_L=0 границы клампа обнуляются (м2: SK_L:=0.2*pr_Ktime - >0).
+'  Откат: SW_SKL=0 (эмит как в v4). С1б-7 (B13 донор) - НЕ внесён: решение владельца
+'  (вариант (а) подстановка переменной при объявлении / (б) флаг данных «граница-донор»).
+'  Откат: SW_TST=0, SW_SKL=0. Счётчики TST/SKL в итоговом MsgBox.
+' НОВОЕ В v6 (23.11, С1б-2 остаток): жёсткие капы фаз в лимитерах (W_out/L_out/G_out := инвентарь+приход)
+'  заменены плавным по-фазным масштабом ZZ0[93]/ZZ0[94]/ZZ0[95] (м2 их уже вычисляет, но не применяет).
+'  Перекладки фаз (излишек W->L->G->L) убраны правилом A9 в v4. МЕНЯЕТ ЧИСЛА: SW_PH=1 дефолт,
+'  сверка эталоном обязательна (границы _1: узлы с ZZ0-группами). Откат: SW_PH=0.
+' НОВОЕ В v5 (23.11, партия Шага 0, остаток): С0-1 clamp/guard-счётчики (инкременты в стражах LH1
+'  и клампах A1/A6/B11/B14 + печать в HEALTH-строке С0-1), С0-5 {$R+} за флагом SW_RP=0 (ВЫКЛ по
+'  умолчанию; включать только после аудита границ SH_C 1..20 vs массивы 1..19 - п.5 реестра).
+'  СВЕРКА 23.11: реестр v1.0 отставал от базы v4 - С0-2 (L1_FixPowers), С0-3 (PsReady+AA02-защита),
+'  С0-4 (B15: eps в XX0[7]-делениях), С0-8 (B2-печать + замер K_fff, kerr -992/-993) и С1б-16
+'  (ОИ-Ньютон: OI_MODE=1, бисекция 60 итераций, SW_OIM=1) УЖЕ внесены в v4.
+'  НЕ включено: build(10) (перенос санитизации дублей в начало итерации) - следующая партия.
+'---------------------------------------------------------------------
+' БАЗА: LH3 v2 (стражи v21 + ПОСТ-ПРАВКИ A1/A2 + Ф4).
+' НОВОЕ В v4 (по реестру lh3_fix_registry.txt и прогону пайплайна):
+'  С0-1 счётчики LH3_cnt_OI/LH3_cnt_24K + HEALTH; С0-2 Power(a,2)->(a)*(a);
+'  С0-3 кэш Psat: AA/BB - константы фита (вычислить один раз, НЕ по T);
+'  С0-4 Б2-печать; С0-5 HEALTH-симметрия рёбер; С0-8 замер K_fff;
+'  С1а-1 Power(2.7182,x)->Exp; С1а-2 Power(x,0.5)->Sqrt (синхронно с CG4 в будущем);
+'  С1б-9 Т-2/Т-1: канонический расход ребра (вторая половина валидируется,
+'        для границ - "я мёртв, сосед-граница -> явный ноль");
+'  С1б-10 Т-3/LRC: гашение U_ri при aa3<=0; ЛРС без разрыва 0.2 и без знака-свопа;
+'  С1б-10 A6: кламп подушки без ручного окна; С1б-12 ОИ-Ньютон (OI_MODE=1);
+'  С1б-10/12.4 нормировка без доборов; eG=beta_mass; roI по rs;
+'  С2-4 B8: 298->273.15; B11: нижний кламп dL; B12: гейт клапана роста;
+'  B14: клампы долей; B15: eps в XX0[7]-делениях;
+'  F11: невязка без K_svod + W_damp + относительный критерий;
+'  A11: пересчёт фазовых расходов после петли ОИ (только ОИ-петли).
+' Приёмка: FPC 3.2.2 - _000/_00/_01 чисто, _0 - известный класс заглушек UI2.
+' Решение владельца: м2 НЕ ТРОГАЕТСЯ; CG4 вне обсуждения.
+' ПРИМЕЧАНИЕ: ufProgress/PrPro - внешние (книга владельца, как в Мой_VBA); если их нет в книге -
+'  VBA даст "Sub or Function not defined" - держать книгу с Мой_VBA открытой (как в LH2 v34).
+'=====================================================================
+'=====================================================================
+Option Explicit
+Const LH3_KEYLOG As Long = 1    ' Ф53-б: читать ключ HEALTH/HEALTH2 из LOG0 (0 - не читать; юниты без LOG0)
+Const LH3_DBG_OUT As Long = 0   ' Ф53-в: ключ лога юнитов: 0 - выдачи выключены (рабочий режим), 1 - включить всё (равнозначно ключам HEALTH/HEALTH2)
+Private csh1 As Boolean
+Private AB_SLOT As Long
+Private gMaxPart As Long     ' LH3 v15 (Ф20): максимальная длина части (контроль лимита компилятора)
+Private Const LH3_SAFE_LINE As Long = 6000   ' Ф55: порог приёмки тела процедуры (DCC: 7100 прошло, 10611 - нет)
+Private LH3_StopFlag As Boolean              ' Ф55: найдены тела выше порога
+Private LH3_StopMsg As String                ' Ф55: список нарушений (до 10)
+Private LH3_StopCnt As Long                  ' Ф55: всего нарушений
+Private gNoParamSkipped As Long   ' LH3 v15 (Ф20/Ф14): счётчик процедур с параметрами, пропущенных при разрезании
+Private gMonoPieces As Long   ' LH3 v21 (Ф32): суммарное число кусков в-блочной резки
+Private gMonoBlocks As Long   ' LH3 v21 (Ф32): число блоков, разрезанных в-блочно
+Private totNoParam As Long        ' LH3 v15: суммарный счётчик Ф14 по комплекту (замечание 5.1 PSR)
+Private nDub As Long              ' LH3 v15 (Ф19): счётчик пропущенных дублей деклараций
+Private L1_cnt_POWFIX As Long    ' LH3 v26 (Ф36.1): число оставленных Power (С1а-1: прочие основания + буквенный показатель)
+Private L1_cnt_EXP2 As Long      ' LH3 v26 (Ф36.1): число корректных Exp-замен (С1а-1, основание 2.7182)
+
+' LH3 v26 (Ф36.1): распознавание основания-константы e=2.7182 (ТОЧНО; LNG2E=ln(2.7182)=0.9999698915).
+' Расширенные формы (2.71828, "e") НЕ принимаются: подмена Ln(a) на LNG2E для не-2.7182 и была багом С1а-1.
+Private Function L1_IsEBase(ByVal s As String) As Boolean
+    L1_IsEBase = (Trim(s) = "2.7182")
+End Function
+
+' LH3 v26 (Ф36.2): канарейка при старте конвертации.
+' PASS-условия: (1) тождество Power(2.7182,0.23)=Exp(0.23*Log(2.7182)) с точн. 1e-9 отн.
+'   (эталон - Log в рантайме, Ф41 v28; замена корректна по определению LNG2E=ln(2.7182);
+'   + ПРОВЕРКА 1б: |LNG2E - Log(2.7182)| <= 1e-8 абс. - ловит подмену константы);
+'   (2) критерий основания: L1_IsEBase("2.7182")=True, L1_IsEBase("2.72")=False,
+'   L1_IsEBase("((po_p+1)/(pi_p+1))")=False (критерий не расширен);
+'   (3) контрпример: Power(2,0.23)=1.1726 НЕ равен Exp(0.23*LNG2E)=1.5838 (расхождение есть).
+' FAIL -> MsgBox + Exit Sub (конвертация не выпускается) - как Ф37.4 в CG4 v12.
+Private Function L1_CanaryPowers() As Boolean
+    Dim lhs As Double, rhs As Double
+    L1_CanaryPowers = False
+    ' ПРОВЕРКА 1 (Ф41 v28): эталон - Log(2.7182) в рантайме, а не округлённая константа
+    lhs = (2.7182 ^ 0.23): rhs = Exp(0.23 * Log(2.7182))
+    If Abs(lhs - rhs) > 0.000000001 * lhs Then Exit Function
+    ' ПРОВЕРКА 1б (Ф41 v28): эмитируемая LNG2E точна до 1e-8 абс. (ловит подмену константы,
+    ' не ловя её собственную погрешность 5.04e-9)
+    If Abs(0.9999698915 - Log(2.7182)) > 0.00000001 Then Exit Function
+    If Not L1_IsEBase("2.7182") Then Exit Function
+    If L1_IsEBase("2.72") Then Exit Function
+    If L1_IsEBase("((po_p+1)/(pi_p+1))") Then Exit Function
+    lhs = (2# ^ 0.23): rhs = Exp(0.23 * 0.9999698915)
+    If Abs(lhs - rhs) < 0.000001 * lhs Then Exit Function
+    L1_CanaryPowers = True
+End Function
+
+' --- есть ли кириллица ВНЕ строк-литералов и вне "//" (Ф4 v2, перенос из LH1/LH2) ---
+Private Function L1_CyrOut(ByVal s As String) As Boolean
+    Dim q As String, i As Long, c As String, a As Long
+    q = ""
+    For i = 1 To Len(s)
+        c = Mid(s, i, 1)
+        If q <> "" Then
+            If c = q Then q = ""
+        ElseIf c = "'" Or c = Chr(34) Then
+            q = c
+        ElseIf c = "/" And i < Len(s) And Mid(s, i + 1, 1) = "/" Then
+            Exit For
+        Else
+            a = Asc(c)
+            If (a >= 192 And a <= 255) Or a = 168 Or a = 184 Then
+                L1_CyrOut = True: Exit Function
+            End If
+        End If
+    Next i
+    L1_CyrOut = False
+End Function
+
+' --- флаги правил v4: локальные в Sub LH3_Convert (Dim + инициализация) ---
+
+' --- простой идентификатор (безопасно гасить присваиванием) ---
+Private Function L1_Simple(ByVal s As String) As Boolean
+    Dim i As Long, c As String
+    L1_Simple = False
+    If Len(s) = 0 Then Exit Function
+    For i = 1 To Len(s)
+        c = Mid(s, i, 1)
+        If Not ((c >= "a" And c <= "z") Or (c >= "A" And c <= "Z") Or (c >= "0" And c <= "9") Or c = "_") Then Exit Function
+    Next i
+    L1_Simple = True
+End Function
+' --- дельта глубины begin/try/repeat/case - end/until (вне строк-литералов) ---
+Private Function L1_Delta(ByVal s As String) As Long
+    Dim q As Boolean, i As Long, c As String, buf As String, t As String
+    Dim d As Long, j As Long, w As String
+    q = False: buf = ""
+    For i = 1 To Len(s)
+        c = Mid(s, i, 1)
+        If c = "'" Then
+            q = Not q: buf = buf & c
+        ElseIf c = "/" And (Not q) And i < Len(s) And Mid(s, i + 1, 1) = "/" Then
+            Exit For
+        Else
+            buf = buf & c
+        End If
+    Next i
+    t = LCase(buf)
+    If InStr(t, "begin") = 0 And InStr(t, "end") = 0 And InStr(t, "try") = 0 _
+       And InStr(t, "repeat") = 0 And InStr(t, "until") = 0 And InStr(t, "case") = 0 Then
+        L1_Delta = 0: Exit Function
+    End If
+    For i = 1 To Len(t)
+        c = Mid(t, i, 1)
+        If Not ((c >= "a" And c <= "z") Or (c >= "0" And c <= "9") Or c = "_") Then Mid(t, i, 1) = " "
+    Next i
+    d = 0
+    Dim parts() As String
+    parts = Split(t, " ")
+    For j = LBound(parts) To UBound(parts)
+        w = parts(j)
+        If w = "begin" Or w = "try" Or w = "repeat" Then d = d + 1
+        If w = "end" Or w = "until" Then d = d - 1
+        If w = "case" Then d = d + 1
+    Next j
+    L1_Delta = d
+End Function
+' --- Power-фиксы v4 (С0-2, С1а-1, С1а-2): балансный разбор, скобки сохраняются ---
+Private Function L1_FixPowers(ByVal s As String) As String
+    Dim out As String, i As Long, p As Long, depth As Long, c As String
+    Dim rest As String, args As String, j As Long, a1 As String, a2 As String
+    out = "": i = 1
+    Do While i <= Len(s)
+        p = InStr(i, s, "Power(", vbTextCompare)
+        If p = 0 Then out = out & Mid(s, i): Exit Do
+        If p > 1 Then out = out & Mid(s, i, p - i)
+        ' разбор скобок от p+5
+        depth = 1: j = p + 6: args = ""
+        Do While j <= Len(s) And depth > 0
+            c = Mid(s, j, 1)
+            If c = "(" Then depth = depth + 1
+            If c = ")" Then
+                depth = depth - 1
+                If depth = 0 Then Exit Do
+            End If
+            args = args & c: j = j + 1
+        Loop
+        If depth = 0 Then
+            ' args = A,B (A может быть выражением со скобками)
+            depth = 0: a1 = "": a2 = ""
+            For i = 1 To Len(args)
+                c = Mid(args, i, 1)
+                If c = "(" Then depth = depth + 1
+                If c = ")" Then depth = depth - 1
+                If c = "," And depth = 0 Then
+                    a1 = Left(args, i - 1): a2 = Mid(args, i + 1): Exit For
+                End If
+            Next i
+            a1 = Trim(a1): a2 = Trim(a2)
+            If a1 <> "" And a2 <> "" Then
+                If a2 = "2" Then
+                    out = out & "(" & a1 & ")*(" & a1 & ")"          ' С0-2
+                ElseIf a2 = "0.5" Then
+                    out = out & "Sqrt(" & a1 & ")"                    ' С1а-2
+                ElseIf LCase(Left(a2, 1)) >= "a" Then
+                    out = out & "Power(" & args & ")"                     ' С1а-1 v26 (Ф36.1): буквенный показатель - НЕ заменять (v4-v25 теряли a2)
+                    L1_cnt_POWFIX = L1_cnt_POWFIX + 1
+                Else
+                    If L1_IsEBase(a1) Then
+                        out = out & "Exp((" & a1 & ")*" & a2 & "*LH3_LNG2E)"   ' С1а-1 v26 (Ф36.1): основание 2.7182 - корректная замена (Ln(2.7182)=LNG2E)
+                        L1_cnt_EXP2 = L1_cnt_EXP2 + 1
+                    Else
+                        out = out & "Power(" & args & ")"                      ' С1а-1 v26 (Ф36.1): прочие основания - Power как есть (Ln(a) не подменяется)
+                        L1_cnt_POWFIX = L1_cnt_POWFIX + 1
+                    End If
+                End If
+            Else
+                out = out & "Power(" & args & ")"
+            End If
+            i = j + 1
+        Else
+            out = out & "Power(": i = p + 6
+        End If
+    Loop
+    L1_FixPowers = out
+End Function
+' --- условие NaN/бред ---
+Private Function L1_Bad(ByVal nm As String) As String
+    If csh1 Then
+        L1_Bad = "double.IsNaN(" & nm & ")||Math.Abs(" & nm & ")>1e300"
+    Else
+        L1_Bad = "IsNan(" & nm & ") or (Abs(" & nm & ")>1e300)"
+    End If
+End Function
+' --- запись события (первое появление = порядковый номер) ---
+Private Function L1_Rec(ByVal idx As String, ByVal nm As String, ByVal uz As Long, ByVal tp As Long) As String
+    If csh1 Then
+        L1_Rec = "if (" & idx & "==0) && (NaN_seq<1000) { NaN_seq++; " & idx & "=NaN_seq; NaN_nm[NaN_seq]=""" & nm & """; NaN_uz[NaN_seq]=" & CStr(uz) & "; NaN_tp[NaN_seq]=" & CStr(tp) & "; }"
+    Else
+        L1_Rec = "if (" & idx & "=0) and (NaN_seq<1000) then begin NaN_seq:=NaN_seq+1; " & idx & ":=NaN_seq; NaN_nm[NaN_seq]:='" & nm & "'; NaN_uz[NaN_seq]:=" & CStr(uz) & "; NaN_tp[NaN_seq]:=" & CStr(tp) & "; end;"
+    End If
+End Function
+' --- условие вне диапазона давлений (активен при LIM_P_max>0) ---
+Private Function L1_RngBad(ByVal nm As String) As String
+    L1_RngBad = "(LIM_P_max>0) and (((" & nm & ")<LIM_P_min) or ((" & nm & ")>LIM_P_max))"
+End Function
+' --- условие живого last-good из зеркала ---
+Private Function L1_Live(ByVal nm As String) As String
+    L1_Live = "(Not IsNan(" & nm & ")) and (Abs(" & nm & ")<=1e300) and ((" & nm & ")>1e-9)"
+End Function
+
+'=====================================================================
+' LH3 v15 (Ф20): a/b-РАЗБИЕНИЕ ПРОЦЕДУР - порт механики LH2 v37 дословно
+' (L2_Split/L2_Disp/хелперы; пост-проход ПОСЛЕ вставок; Ф14/Ф15/Ф11/Ф12 учтены).
+' Имена маркеров в эмите частей оставлены 'LH2 v22/v28' - как в рабочем эталоне.
+'=====================================================================
+Private Function L2_Simple(ByVal s As String) As Boolean
+    Dim i As Long, c As String
+    L2_Simple = False
+    If Len(s) = 0 Then Exit Function
+    For i = 1 To Len(s)
+        c = Mid(s, i, 1)
+        If Not ((c >= "a" And c <= "z") Or (c >= "A" And c <= "Z") Or (c >= "0" And c <= "9") Or c = "_") Then Exit Function
+    Next i
+    L2_Simple = True
+End Function
+
+' --- условие NaN/бред (pas-юниты) ---
+Private Function L2_IsName(ByVal s As String) As Boolean
+    Dim i As Long, c As String
+    L2_IsName = False
+    If Len(s) = 0 Then Exit Function
+    For i = 1 To Len(s)
+        c = Mid(s, i, 1)
+        If Not ((c >= "a" And c <= "z") Or (c >= "A" And c <= "Z") Or (c >= "0" And c <= "9") Or c = "_" Or c = ".") Then Exit Function
+    Next i
+    L2_IsName = True
+End Function
+
+' --- имя процедуры из строки заголовка ---
+Private Function L2_ProcName(ByVal t As String) As String
+    Dim s As String, p As Long, head As String
+    L2_ProcName = ""
+    s = Trim(t)
+    If LCase(Left(s, 10)) = "procedure " Then
+        s = Mid(s, 11)
+    ElseIf LCase(Left(s, 9)) = "function " Then
+        s = Mid(s, 10)
+    Else
+        Exit Function
+    End If
+    s = Trim(s)
+    p = InStr(s, "(")
+    If p = 0 Then p = InStr(s, ":")
+    If p = 0 Then p = InStr(s, ";")
+    If p <= 1 Then Exit Function
+    head = Trim(Left(s, p - 1))
+    If InStr(head, ".") > 0 Then head = Trim(Mid(head, InStr(head, ".") + 1))
+    If L2_Simple(head) Then L2_ProcName = head
+End Function
+
+' --- дельта глубины begin/try/repeat/case - end/until (вне строк-литералов) ---
+Private Function L2_Tok(ByVal tok As String, ByVal oldw As String, ByVal neww As String) As String
+    If StrComp(tok, oldw, vbTextCompare) = 0 Then L2_Tok = neww Else L2_Tok = tok
+End Function
+
+Private Function L2_RenameWord(ByVal s As String, ByVal oldw As String, ByVal neww As String) As String
+    Dim r As String, i As Long, c As String, tok As String, q As Boolean
+    r = "": tok = "": q = False
+    For i = 1 To Len(s)
+        c = Mid(s, i, 1)
+        If c = "'" Then
+            q = Not q
+            If tok <> "" Then r = r & L2_Tok(tok, oldw, neww): tok = ""
+            r = r & c
+        ElseIf Not q And ((c >= "a" And c <= "z") Or (c >= "A" And c <= "Z") Or (c >= "0" And c <= "9") Or c = "_") Then
+            tok = tok & c
+        Else
+            If tok <> "" Then r = r & L2_Tok(tok, oldw, neww): tok = ""
+            r = r & c
+        End If
+    Next i
+    If tok <> "" Then r = r & L2_Tok(tok, oldw, neww)
+    L2_RenameWord = r
+End Function
+
+' --- имя класса юнита (строка "=class(" до implementation) ---
+Private Function L2_Delta(ByVal s As String) As Long
+    Dim q As Boolean, i As Long, c As String, buf As String, t As String
+    Dim d As Long, j As Long, w As String
+    q = False: buf = ""
+    For i = 1 To Len(s)
+        c = Mid(s, i, 1)
+        If c = "'" Then
+            q = Not q: buf = buf & c
+        ElseIf c = "/" And (Not q) And i < Len(s) And Mid(s, i + 1, 1) = "/" Then
+            Exit For
+        Else
+            buf = buf & c
+        End If
+    Next i
+    t = LCase(buf)
+    If InStr(t, "begin") = 0 And InStr(t, "end") = 0 And InStr(t, "try") = 0 _
+       And InStr(t, "repeat") = 0 And InStr(t, "until") = 0 And InStr(t, "case") = 0 Then
+        L2_Delta = 0: Exit Function
+    End If
+    For i = 1 To Len(t)
+        c = Mid(t, i, 1)
+        If Not ((c >= "a" And c <= "z") Or (c >= "0" And c <= "9") Or c = "_") Then Mid(t, i, 1) = " "
+    Next i
+    d = 0
+    Dim parts() As String
+    parts = Split(t, " ")
+    For j = LBound(parts) To UBound(parts)
+        w = parts(j)
+        If w = "begin" Or w = "try" Or w = "repeat" Then d = d + 1
+        If w = "end" Or w = "until" Then d = d - 1
+        If w = "case" Then d = d + 1
+    Next j
+    L2_Delta = d
+End Function
+
+' --- замена идентификатора на границах слов, вне строк-литералов ---
+Private Function L2_ClassName(ByRef lines() As String, ByVal impl As Long) As String
+    Dim i As Long, t As String, p As Long
+    L2_ClassName = "T_Hmodel_UKR"
+    For i = 1 To impl - 1
+        t = Trim(lines(i))
+        p = InStr(LCase(t), "=class(")
+        If p > 1 Then
+            Dim w As String: w = Trim(Left(t, p - 1))
+            If L2_Simple(w) Then L2_ClassName = w: Exit Function
+        End If
+    Next i
+End Function
+
+' --- есть ли кириллица ВНЕ строк-литералов и вне "//" (Ф5, перенос Ф4 из LH1) ---
+Private Sub L2_CollectForVars(ByVal s As String, ByRef forSet As Object)
+    Dim p As Long, e As Long, q2 As Long, nm2 As String
+    p = 1
+    Do While p > 0 And p <= Len(s)
+        p = InStr(p, LCase(s), "for ")
+        If p = 0 Then Exit Do
+        q2 = p + 4
+        Do While q2 <= Len(s) And Mid(s, q2, 1) = " "
+            q2 = q2 + 1
+        Loop
+        e = q2
+        Do While e <= Len(s)
+            If InStr("abcdefghijklmnopqrstuvwxyz0123456789_", LCase(Mid(s, e, 1))) = 0 Then Exit Do
+            e = e + 1
+        Loop
+        nm2 = LCase(Mid(s, q2, e - q2))
+        If Len(nm2) > 0 Then
+            If Not forSet.Exists(nm2) Then forSet.Add nm2, 1
+        End If
+        p = e
+    Loop
+End Sub
+
+Private Sub L2_PushL(ByRef out() As String, ByRef m As Long, ByRef cap As Long, ByVal s As String)
+    m = m + 1
+    If m > cap Then cap = cap * 2: ReDim Preserve out(1 To cap)
+    out(m) = s
+End Sub
+
+Private Sub L2_PushR(ByRef out() As String, ByRef m As Long, ByRef cap As Long, ByRef arr() As String, ByVal a As Long, ByVal z As Long)
+    Dim i As Long
+    For i = a To z
+        L2_PushL out, m, cap, arr(i)
+    Next i
+End Sub
+
+' --- строки регистрации прохождения процедуры (слоты Miss_proc 1..100 - штатный пакет м2) ---
+Private Sub L2_RegLines(ByRef out() As String, ByRef m As Long, ByRef cap As Long, ByVal slot As Long, ByVal pn As String)
+    L2_PushL out, m, cap, "    if (Miss_comm=0) then Miss_proc[ " & slot & "]:='" & pn & " kerr='+CStr(kerr)+'  IST='+CURRENT_I_NAME+' // ' ; // индикатор прохождения процедуры // LH2 v28:"
+    L2_PushL out, m, cap, "    if (Miss_comm=0) then Miss_ind[ " & slot & "]:=Miss_ind[ " & slot & "]+1; // LH2 v28:"
+    L2_PushL out, m, cap, "    if (Miss_comm=0) then Miss_kerr[ " & slot & "]:=Round(kerr); // LH2 v28:"
+    L2_PushL out, m, cap, "    if (Miss_comm=1) then Miss_proc[ " & slot & "]:='' ; // индикатор прохождения процедуры // LH2 v28:"
+    L2_PushL out, m, cap, "    if (Miss_comm=0) then Miss_proc_2[ " & slot & "]:=' '+CStr(kerr)+''; // индикатор прохождения процедуры // LH2 v28:"
+    L2_PushL out, m, cap, "    if (Miss_comm=1) then Miss_proc_2[ " & slot & "]:='' ; // индикатор прохождения процедуры // LH2 v28:"
+End Sub
+
+Private Sub L2_RegLinesDisp(ByRef out() As String, ByRef m As Long, ByRef cap As Long, ByVal slot As Long, ByVal pn As String)
+    L2_RegLines out, m, cap, slot, pn
+    L2_PushL out, m, cap, "    if (INT_first_step=1) then Log(' " & pn & " - SUCSESS '); // помечаем проход части // LH2 v28:"
+End Sub
+
+' --- замена номера слота в гейте "if (Miss_ind[ N]<4) then" ---
+Private Function L2_SlotSub(ByVal s As String, ByVal slot As Long) As String
+    Dim p1 As Long, p2 As Long, num As String
+    p1 = InStr(s, "Miss_ind[")
+    If p1 = 0 Then L2_SlotSub = s: Exit Function
+    p2 = InStr(p1, s, "]")
+    If p2 <= p1 Then L2_SlotSub = s: Exit Function
+    num = Trim(Mid(s, p1 + 9, p2 - p1 - 9))
+    L2_SlotSub = Left(s, p1 + 8) & CStr(slot) & Mid(s, p2)
+End Function
+
+' --- замена номера слота во ВСЕХ рег-строках блока (Miss_proc/Miss_ind/Miss_kerr/Miss_proc_2) ---
+Private Function L2_SlotAll(ByVal s As String, ByVal newS As Long) As String
+    Dim r As String, p As Long, q As Long, keys As Variant, i As Long
+    r = s
+    keys = Array("Miss_proc[", "Miss_ind[", "Miss_kerr[", "Miss_proc_2[")
+    For i = LBound(keys) To UBound(keys)
+        p = InStr(r, keys(i))
+        Do While p > 0
+            q = InStr(p, r, "]")
+            If q > p Then r = Left(r, p + Len(keys(i)) - 1) & CStr(newS) & Mid(r, q)
+            p = InStr(p + 1, r, keys(i))
+        Loop
+    Next i
+    L2_SlotAll = r
+End Function
+
+' --- максимальное тело процедуры в файле (исходник) ---
+Private Function L2_MaxSourceBody(ByVal fPath As String) As Long
+    Dim fn As Integer, n As Long, cap As Long, ln As String
+    Dim lines() As String, i As Long, k As Long, t As String
+    Dim np As Long, mx As Long, jb As Long, ke As Long, dd As Long, okk As Boolean
+    L2_MaxSourceBody = 0
+    If Len(Dir(fPath)) = 0 Then Exit Function
+    fn = FreeFile
+    Open fPath For Input As #fn
+    n = 0: cap = 1000: ReDim lines(1 To cap)
+    Do While Not EOF(fn)
+        Line Input #fn, ln
+        n = n + 1
+        If n > cap Then cap = cap * 2: ReDim Preserve lines(1 To cap)
+        lines(n) = ln
+    Loop
+    Close #fn
+    ReDim Preserve lines(1 To n)
+    Dim impl As Long: impl = 0
+    For i = 1 To n
+        If LCase(Trim(lines(i))) = "implementation" Then impl = i: Exit For
+    Next i
+    If impl = 0 Then Exit Function
+    np = 0: mx = 0
+    i = impl
+    Do While i <= n
+        t = Trim(lines(i))
+        If (Left(LCase(t), 10) = "procedure " Or Left(LCase(t), 9) = "function ") And Right(t, 1) = ";" Then
+            Dim nm As String: nm = L2_ProcName(t)
+            jb = 0
+            If Len(nm) > 0 Then
+                Dim j As Long: j = i + 1
+                Do While j <= n
+                    If Trim(lines(j)) = "begin" Then jb = j: Exit Do
+                    Dim t2 As String: t2 = Trim(lines(j))
+                    If Left(LCase(t2), 10) = "procedure " Or Left(LCase(t2), 9) = "function " Then Exit Do
+                    j = j + 1
+                Loop
+                If jb > i Then
+                    ke = 0: okk = False: dd = 1
+                    For k = jb + 1 To n
+                        dd = dd + L2_Delta(lines(k))
+                        If dd <= 0 Then ke = k: okk = True: Exit For
+                    Next k
+                    If okk Then
+                        np = np + 1
+                        If ke - jb > mx Then mx = ke - jb
+                        i = ke + 1
+                    Else
+                        i = i + 1
+                    End If
+                Else
+                    i = i + 1
+                End If
+            Else
+                i = i + 1
+            End If
+        Else
+            i = i + 1
+        End If
+    Loop
+    L2_MaxSourceBody = mx
+End Function
+
+' --- точка разреза: коммент-строка или завершённая ';'-строка на нулевой глубине,
+'     за которой не начинается продолжение выражения ---
+' --- точка разреза: коммент-строка или завершённая ';'-строка на глубине depth,
+'     за которой не начинается продолжение выражения ---
+Private Sub L2_CutCandidates(ByRef body() As String, ByVal bn As Long, ByRef cand() As Long, ByRef ncand As Long, ByVal depth As Long)
+    Dim k As Long, dd As Long, t As String, jn As Long, nx As String, badn As Boolean
+    ncand = 0: dd = 0
+    For k = 1 To bn
+        dd = dd + L2_Delta(body(k))
+        If dd = depth Then
+            t = Trim(body(k))
+            If Left(t, 2) = "//" Then
+                ncand = ncand + 1
+                If ncand > UBound(cand) Then ReDim Preserve cand(1 To ncand * 2)
+                cand(ncand) = k
+            ElseIf Right(t, 1) = ";" And LCase(Left(t, 3)) <> "end" And LCase(Left(t, 4)) <> "else" Then
+                jn = k + 1
+                Do While jn <= bn
+                    If Len(Trim(body(jn))) > 0 Then Exit Do
+                    jn = jn + 1
+                Loop
+                nx = ""
+                If jn <= bn Then nx = LCase(Left(Trim(body(jn)), 4))
+                badn = (nx = "else") Or (Left(nx, 3) = "end") Or (Left(nx, 4) = "unti") _
+                    Or (Left(nx, 1) = "+") Or (Left(nx, 1) = "-") Or (Left(nx, 3) = "and") _
+                    Or (Left(nx, 2) = "or") Or (Left(nx, 1) = ".")
+                If Not badn Then
+                    ncand = ncand + 1
+                    If ncand > UBound(cand) Then ReDim Preserve cand(1 To ncand * 2)
+                    cand(ncand) = k
+                End If
+            End If
+        End If
+    Next k
+End Sub
+
+' --- суффикс части: a..z, затем za, zb, ... ---
+Private Function L2_Suf(ByVal k As Long) As String
+    If k <= 26 Then
+        L2_Suf = Chr(96 + k)
+    Else
+        L2_Suf = "z" & CStr(k - 26)
+    End If
+End Function
+
+
+' --- ближайшая к середине точка из списка кандидатов ---
+Private Function L2_BestCut(ByRef cand() As Long, ByVal ncand As Long, ByVal half As Double) As Long
+    Dim k As Long, bst As Long
+    bst = 0
+    For k = 1 To ncand
+        If cand(k) > 0 And cand(k) < half * 2 Then
+            If bst = 0 Or Abs(cand(k) - half) < Abs(bst - half) Then bst = cand(k)
+        End If
+    Next k
+    L2_BestCut = bst
+End Function
+
+Private Function L2_MonoStrip(ByVal s As String) As String
+    Dim i As Long, q2 As Boolean, r As String, c As String
+    q2 = False: r = ""
+    For i = 1 To Len(s)
+        c = Mid(s, i, 1)
+        If c = "'" Then
+            q2 = Not q2
+        ElseIf c = "/" And (Not q2) And i < Len(s) And Mid(s, i + 1, 1) = "/" Then
+            Exit For
+        ElseIf Not q2 Then
+            r = r & c
+        End If
+    Next i
+    L2_MonoStrip = r
+End Function
+
+Private Function L2_MonoWords(ByVal s As String) As String()
+    Dim r() As String
+    Dim i As Long, c As String, buf As String, n As Long
+    For i = 1 To Len(s)
+        c = Mid(s, i, 1)
+        If (c >= "a" And c <= "z") Or (c >= "0" And c <= "9") Or c = "_" Then
+            buf = buf & c
+        Else
+            If Len(buf) > 0 Then
+                n = n + 1
+                ReDim Preserve r(1 To n)
+                r(n) = buf
+                buf = ""
+            End If
+        End If
+    Next i
+    If Len(buf) > 0 Then
+        n = n + 1
+        ReDim Preserve r(1 To n)
+        r(n) = buf
+    End If
+    If n = 0 Then
+        ReDim r(1 To 1)
+        r(1) = ""
+    End If
+    L2_MonoWords = r
+End Function
+
+'=====================================================================
+' Ф32а v21: в-блочная резка монолитного блока с дублированием условия.
+' Возвращает True, если резала. Если в блоке многострочный цикл - НЕ режет,
+' ставит cycFlag=1 (для Ф32б). Правила и стражи - см. шапку v21.
+'=====================================================================
+Private Function L2_MonoSplit(ByRef base1() As String, ByRef bn1 As Long, _
+    ByVal thrMono As Long, ByRef nParts As Long, ByRef maxPart As Long, _
+    ByRef msg As String, ByRef cycFlag As Long) As Boolean
+    Dim i As Long, j As Long, k As Long, dd As Long, pv As Long
+    Dim bA As Long, be As Long, blen As Long
+    Dim ifStart As Long, t As String, tt As String
+    Dim condTxt() As String, nCond As Long
+    Dim cvars() As String, nc As Long, ws() As String, w As String
+    Dim badCond As Boolean, oneSided As Long, hasB As Boolean, hasE As Boolean, hasC As Boolean
+    Dim cand() As Long, ncand As Long, jn As Long, nx As String, badn As Boolean
+    Dim np As Long, tg As Long, bS As Long, lastc As Long
+    Dim cts() As Long
+    Dim out2() As String, m2 As Long, cap2 As Long, pLen As Long, pE2 As Long
+    L2_MonoSplit = False: nParts = 0: maxPart = 0: msg = "": cycFlag = 0
+    bA = 0: be = 0: dd = 0
+    For i = 1 To bn1
+        pv = dd
+        dd = dd + L2_Delta(base1(i))
+        If pv = 0 And dd > 0 Then bA = i
+        If dd = 0 And pv > 0 And bA > 0 Then
+            If (i - bA - 1) > thrMono Then
+                be = i: Exit For
+            Else
+                bA = 0: be = 0
+            End If
+        End If
+    Next i
+    If bA = 0 Then Exit Function
+    blen = be - bA - 1
+    ifStart = bA
+    For i = bA - 1 To 1 Step -1
+        t = LCase(Trim(base1(i)))
+        If Len(t) = 0 Then
+            ifStart = i
+        ElseIf Left(t, 3) = "if " Or Left(t, 3) = "if(" Or Left(t, 4) = "elseif" Then
+            ifStart = i: Exit For
+        Else
+            ifStart = bA: Exit For
+        End If
+    Next i
+    nCond = bA - ifStart + 1
+    ReDim condTxt(1 To nCond)
+    For i = ifStart To bA
+        condTxt(i - ifStart + 1) = base1(i)
+    Next i
+    nc = 0: ReDim cvars(1 To 16)
+    For i = ifStart To bA
+        ws = L2_MonoWords(L2_MonoStrip(base1(i)))
+        For j = LBound(ws) To UBound(ws)
+            w = ws(j)
+            If Len(w) > 0 And w <> "if" And w <> "then" And w <> "begin" _
+               And w <> "and" And w <> "or" And w <> "not" And w <> "elseif" _
+               And w <> "end" And w <> "=" Then
+                If Not ((Left(w, 1) >= "0") And (Left(w, 1) <= "9")) Then
+                    nc = nc + 1
+                    If nc > UBound(cvars) Then ReDim Preserve cvars(1 To nc * 2)
+                    cvars(nc) = w
+                End If
+            End If
+        Next j
+    Next i
+    oneSided = 0: badCond = False
+    For i = bA + 1 To be - 1
+        tt = LCase(L2_MonoStrip(base1(i)))
+        ws = L2_MonoWords(tt)
+        hasB = False: hasE = False: hasC = False
+        For j = LBound(ws) To UBound(ws)
+            w = ws(j)
+            If w = "begin" Or w = "repeat" Then hasB = True
+            If w = "end" Or w = "until" Then hasE = True
+            If w = "for" Or w = "while" Or w = "case" Then hasC = True
+        Next j
+        If hasC And Not hasB And Not hasE Then oneSided = oneSided + 1
+        If hasC And hasB And Not hasE Then cycFlag = 1
+        If (Not badCond) And nc > 0 Then
+            For j = 1 To nc
+                If InStr(1, tt, cvars(j) & ":=") > 0 Then
+                    badCond = True
+                    Exit For
+                End If
+                If InStr(1, tt, cvars(j) & " :=") > 0 Then
+                    badCond = True
+                    Exit For
+                End If
+            Next j
+        End If
+    Next i
+    If oneSided > 0 Then
+        msg = "Ф32 v21: блок длиной " & CStr(blen) & " НЕ РЕЗАН: одностороние цикл-строки (" & CStr(oneSided) & ") - резка могла бы разорвать цикл"
+        Exit Function
+    End If
+    If badCond Then
+        msg = "Ф32 v21: блок длиной " & CStr(blen) & " НЕ РЕЗАН: переменная условия присваивается внутри блока (дублирование условия небезопасно)"
+        Exit Function
+    End If
+    If cycFlag = 1 Then
+        msg = "Ф32 v21: блок длиной " & CStr(blen) & " содержит многострочный цикl - в-блочная резка с дублированием условия НЕЛЬЗЯ, путь Ф32б (вынос тела цикла)"
+        Exit Function
+    End If
+    ncand = 0: ReDim cand(1 To 64)
+    dd = 0
+    For i = bA + 1 To be - 1
+        t = base1(i)
+        pv = dd
+        dd = dd + L2_Delta(t)
+        If dd = 0 And pv = 0 Then
+            tt = Trim(t)
+            If Left(tt, 2) = "//" Then
+                ncand = ncand + 1
+                If ncand > UBound(cand) Then ReDim Preserve cand(1 To ncand * 2)
+                cand(ncand) = i - bA
+            ElseIf Right(tt, 1) = ";" And LCase(Left(tt, 3)) <> "end" And LCase(Left(tt, 4)) <> "else" Then
+                jn = i + 1
+                Do While jn <= be - 1
+                    If Len(Trim(base1(jn))) > 0 Then Exit Do
+                    jn = jn + 1
+                Loop
+                nx = ""
+                If jn <= be - 1 Then nx = LCase(Left(Trim(base1(jn)), 4))
+                badn = (nx = "else") Or (Left(nx, 3) = "end") Or (Left(nx, 4) = "unti") _
+                    Or (Left(nx, 1) = "+") Or (Left(nx, 1) = "-") Or (Left(nx, 3) = "and") _
+                    Or (Left(nx, 2) = "or") Or (Left(nx, 1) = ".")
+                If Not badn Then
+                    ncand = ncand + 1
+                    If ncand > UBound(cand) Then ReDim Preserve cand(1 To ncand * 2)
+                    cand(ncand) = i - bA
+                End If
+            End If
+        End If
+    Next i
+    If ncand = 0 Then
+        msg = "Ф32 v21: блок длиной " & CStr(blen) & " НЕ РЕЗАН: точек реза внутри блока нет"
+        Exit Function
+    End If
+    np = (blen + thrMono - 1) \ thrMono
+    If np < 2 Then np = 2
+    ReDim cts(0 To np)
+    lastc = 0
+    For k = 1 To np - 1
+        tg = k * blen \ np
+        bS = 0
+        For j = 1 To ncand
+            If cand(j) > lastc Then
+                If bS = 0 Or Abs(cand(j) - tg) < Abs(bS - tg) Then bS = cand(j)
+            End If
+        Next j
+        If bS = 0 Then bS = blen - 1
+        If bS >= blen Then bS = blen - 1
+        If bS <= lastc Then bS = lastc + 1
+        cts(k) = bS: lastc = bS
+    Next k
+    cts(np) = blen
+    cap2 = bn1 + np * (nCond + 2) + 16
+    ReDim out2(1 To cap2): m2 = 0
+    For i = 1 To bA
+        L2_PushL out2, m2, cap2, base1(i)
+    Next i
+    For k = 1 To np
+        pLen = cts(k) - cts(k - 1)
+        If pLen > maxPart Then maxPart = pLen
+        For i = bA + cts(k - 1) + 1 To bA + cts(k)
+            L2_PushL out2, m2, cap2, base1(i)
+        Next i
+        If k < np Then
+            ' копия end-строки БЕЗ kerr-хвоста (дублирование kerr недопустимо - Ф32 v21)
+            pE2 = InStr(base1(be), ";")
+            If pE2 > 0 Then
+                L2_PushL out2, m2, cap2, Left(base1(be), pE2)
+            Else
+                L2_PushL out2, m2, cap2, base1(be)
+            End If
+            For i = ifStart To bA
+                L2_PushL out2, m2, cap2, base1(i)
+            Next i
+        End If
+    Next k
+    For i = be To bn1
+        L2_PushL out2, m2, cap2, base1(i)
+    Next i
+    ReDim Preserve base1(1 To m2)
+    For i = 1 To m2
+        base1(i) = out2(i)
+    Next i
+    bn1 = m2
+    nParts = np
+    msg = "Ф32а v21: блок " & CStr(blen) & " строк -> " & CStr(np) & " кусков, макс. кусок " & CStr(maxPart) & " (лимит в-блочной резки " & CStr(thrMono) & ")"
+    L2_MonoSplit = True
+End Function
+
+' --- поиск строки декларации процедуры в interface (для вставки частей) ---
+Private Function L2_FindDecl(ByRef lines() As String, ByVal impl As Long, ByVal nm As String) As Long
+    Dim k As Long, t As String, dn As String
+    L2_FindDecl = 0
+    For k = 1 To impl - 1
+        t = Trim(lines(k))
+        If LCase(Left(t, 10)) = "procedure " Then
+            dn = Mid(Trim(Mid(t, 11)), 1)
+            If InStr(dn, ".") > 0 Then dn = Mid(dn, InStr(dn, ".") + 1)
+            Dim sp1 As Long, sp2 As Long, sp3 As Long, dm As Long
+            sp1 = InStr(dn, " "): sp2 = InStr(dn, "("): sp3 = InStr(dn, ";")
+            dm = Len(dn) + 1
+            If sp1 > 0 And sp1 < dm Then dm = sp1
+            If sp2 > 0 And sp2 < dm Then dm = sp2
+            If sp3 > 0 And sp3 < dm Then dm = sp3
+            If dm > 1 Then dn = Trim(Left(dn, dm - 1)) Else dn = ""
+            If StrComp(dn, nm, vbTextCompare) = 0 Then L2_FindDecl = k: Exit Function
+        End If
+    Next k
+End Function
+
+
+'=====================================================================
+' ПОСТ-ПРОХОД: a/b-разбиение перегруженных процедур (LH2 v28)
+' Порог = НАСТРАИВАЕМЫЙ лимит компилятора (v22; раньше - макс. исходника -
+' при комплектах с исходными телами за лимитом разбивалось НОЛЬ процедур).
+' Тело > порога делится на N частей (каждая <= порога). try-обёртка тела:
+' кандидаты - границы узловых блоков ВНУТРИ try (dd=1). Переростки-блоки:
+' тело блока выносится в части, вызовы - внутри блока. Локалы -> поля класса.
+' Объявления частей - в interface. splitsD: имя -> число частей (для диспетчера).
+'=====================================================================
+Private Function L2_Split(ByVal fPath As String, ByVal thr As Long, ByRef nChunks As Long, ByRef splitsD As Object, ByRef mainOut As String) As Long
+    Dim fn As Integer, lines() As String, n As Long, cap As Long, ln As String
+    Dim i As Long, k As Long, t As String, dd As Long, kk As Long
+    L2_Split = 0
+    gNoParamSkipped = 0
+
+    If Len(Dir(fPath)) = 0 Then Exit Function
+    fn = FreeFile
+    Open fPath For Input As #fn
+    n = 0: cap = 1000: ReDim lines(1 To cap)
+    Do While Not EOF(fn)
+        Line Input #fn, ln
+        n = n + 1
+        If n > cap Then cap = cap * 2: ReDim Preserve lines(1 To cap)
+        lines(n) = ln
+    Loop
+    Close #fn
+    ReDim Preserve lines(1 To n)
+    If n < 100 Then Exit Function
+    If Len(mainOut) = 0 Then
+        For i = 1 To n
+            t = LCase(Trim(lines(i)))
+            If Left(t, 10) = "procedure " And Right(t, 6) = ".work;" Then     ' v27: ".work;" = 6 символов; Right(t,7) никогда не совпадал -> mainOut не ставился, L2_Disp не вызывался
+                mainOut = fPath: Exit For
+            End If
+        Next i
+    End If
+    Dim impl As Long: impl = 0
+    For i = 1 To n
+        If LCase(Trim(lines(i))) = "implementation" Then impl = i: Exit For
+    Next i
+    If impl = 0 Then Exit Function
+    Dim cls As String: cls = L2_ClassName(lines, impl)
+    ' --- фаза 1: инвентаризация процедур ---
+    Dim pH() As Long, pB() As Long, pE() As Long, pn() As String
+    Dim np As Long: np = 0
+    ReDim pH(1 To 64): ReDim pB(1 To 64): ReDim pE(1 To 64): ReDim pn(1 To 64)
+    Dim names As Object: Set names = CreateObject("Scripting.Dictionary")
+    i = impl
+    Do While i <= n
+        t = Trim(lines(i))
+        If (Left(LCase(t), 10) = "procedure " Or Left(LCase(t), 9) = "function ") And Right(t, 1) = ";" Then
+            Dim nm As String: nm = L2_ProcName(t)
+            Dim jb As Long: jb = 0
+            ' FIX v35 (Ф14): процедуры с параметрами НЕ режем - части теряют параметры (u1..u6/Tfact/Pfact, NOMist и пр.): FPC "Identifier not found"
+            If Len(nm) > 0 And InStr(t, "(") = 0 Then
+                Dim j As Long: j = i + 1
+                Do While j <= n
+                    If Trim(lines(j)) = "begin" Then jb = j: Exit Do
+                    Dim t2 As String: t2 = Trim(lines(j))
+                    If Left(LCase(t2), 10) = "procedure " Or Left(LCase(t2), 9) = "function " Then Exit Do
+                    j = j + 1
+                Loop
+                If jb > i Then
+                    Dim ke As Long, okk As Boolean
+                    ke = 0: okk = False: dd = 1
+                    For k = jb + 1 To n
+                        dd = dd + L2_Delta(lines(k))
+                        If dd <= 0 Then ke = k: okk = True: Exit For
+                    Next k
+                    If okk Then
+                        np = np + 1
+                        If np > UBound(pH) Then
+                            ReDim Preserve pH(1 To np * 2): ReDim Preserve pB(1 To np * 2)
+                            ReDim Preserve pE(1 To np * 2): ReDim Preserve pn(1 To np * 2)
+                        End If
+                        pH(np) = i: pB(np) = jb: pE(np) = ke: pn(np) = nm
+                        If Not names.Exists(nm) Then names.Add nm, 1
+                        i = ke + 1
+                    Else
+                        i = i + 1
+                    End If
+                Else
+                    i = i + 1
+                End If
+            Else
+                If InStr(t, "(") > 0 Then gNoParamSkipped = gNoParamSkipped + 1   ' FIX v35 (Ф14)
+                i = i + 1
+            End If
+        Else
+            i = i + 1
+        End If
+    Loop
+    If np = 0 Then Exit Function
+    ' --- фаза 2: пересборка ---
+    Dim out() As String, m As Long, ocap As Long
+    ocap = n + 512: ReDim out(1 To ocap): m = 0
+    Dim pos As Long: pos = 1
+    Dim nspl As Long: nspl = 0
+    Dim inIdx() As Long, inTxt() As String, nin As Long, icap2 As Long
+    icap2 = 16: ReDim inIdx(1 To icap2): ReDim inTxt(1 To icap2): nin = 0
+    ' единый блок полей-локалов в начале первой секции видимости класса
+    Dim Fall() As String, nfAll As Long
+    ReDim Fall(1 To 16): nfAll = 0
+    Dim gAll() As String, ng As Long   ' Ф12: глобальные for-счётчики юнита (копится ПО ВСЕМ процедурам - ВНЕ цикла!)
+    ReDim gAll(1 To 16): ng = 0
+    Dim clsLn As Long, secLn As Long
+    clsLn = 0: secLn = 0
+    Dim pi As Long
+    For pi = 1 To np
+        Dim h As Long, b As Long, e As Long
+        h = pH(pi): b = pB(pi): e = pE(pi): nm = pn(pi)
+        If h > pos Then L2_PushR out, m, ocap, lines, pos, h - 1
+        pos = h
+        If e - b <= thr Or L2_FindDecl(lines, impl, nm) = 0 Then   ' FIX v35 (Ф15): без декларации в interface не режем
+            L2_PushR out, m, ocap, lines, h, e
+            pos = e + 1
+        Else
+            Dim bL() As String, bln As Long
+            bln = e - b - 1
+            ReDim bL(1 To bln)
+            For k = 1 To bln: bL(k) = lines(b + k): Next k
+            ' отделяем хвост except (первый except на глубине 1)
+            Dim idxExc As Long: idxExc = 0
+            dd = 0
+            For k = 1 To bln
+                If dd = 1 And (Trim(bL(k)) = "except" Or Left(Trim(bL(k)), 7) = "except ") Then idxExc = k: Exit For
+                dd = dd + L2_Delta(bL(k))
+            Next k
+            Dim inner() As String, inn As Long, icap3 As Long
+            Dim exc() As String, exn As Long, ecap As Long
+            icap3 = bln + 8: ReDim inner(1 To icap3): inn = 0
+            ecap = bln + 8: ReDim exc(1 To ecap): exn = 0
+            If idxExc > 0 Then
+                For k = 1 To idxExc - 1: L2_PushL inner, inn, icap3, bL(k): Next k
+                For k = idxExc To bln: L2_PushL exc, exn, ecap, bL(k): Next k
+            Else
+                For k = 1 To bln: L2_PushL inner, inn, icap3, bL(k): Next k
+                exn = 0
+            End If
+            ' локалы -> поля класса (замена ссылок в inner/exc)
+            ' Ф12 v34: for-счётчики НЕ в поля класса (FPC "Illegal counter variable"),
+            ' а в глобальные переменные юнита (вставка перед implementation)
+            Dim forSet As Object: Set forSet = CreateObject("Scripting.Dictionary")
+            For kk = 1 To inn
+                L2_CollectForVars inner(kk), forSet
+            Next kk
+            For kk = 1 To exn
+                L2_CollectForVars exc(kk), forSet
+            Next kk
+            Dim fldNm() As String, nfl As Long
+            ReDim fldNm(1 To 16): nfl = 0
+            For k = h + 1 To b - 1
+                t = Trim(lines(k))
+                If Len(t) > 0 And LCase(t) <> "var" And Left(t, 2) <> "//" And Left(t, 1) <> "{" Then     ' v26: комментарии в var-секции НЕ локалы (там поля класса)
+                    Dim pp As Long: pp = InStr(t, ":")
+                    If pp > 1 Then
+                        Dim lhs As String: lhs = Trim(Left(t, pp - 1))
+                        Dim tp As String: tp = Trim(Mid(t, pp + 1))
+                        If Right(tp, 1) = ";" Then tp = Trim(Left(tp, Len(tp) - 1))
+                        Dim vv() As String: vv = Split(lhs, ",")
+                        Dim vi As Long
+                        For vi = LBound(vv) To UBound(vv)
+                            Dim vn As String: vn = Trim(vv(vi))
+                            If Len(vn) > 0 And L2_Simple(vn) Then
+                                nfl = nfl + 1
+                                If nfl > UBound(fldNm) Then ReDim Preserve fldNm(1 To nfl * 2)
+                                If forSet.Exists(LCase(vn)) Then
+                                    ' Ф12 v34: for-счётчик -> глобальная переменная юнита
+                                    ng = ng + 1
+                                    If ng > UBound(gAll) Then ReDim Preserve gAll(1 To ng * 2)
+                                    gAll(ng) = nm & "_" & vn & ": " & tp & ";"
+                                Else
+                                    fldNm(nfl) = nm & "_" & vn
+                                    nfAll = nfAll + 1
+                                    If nfAll > UBound(Fall) Then ReDim Preserve Fall(1 To nfAll * 2)
+                                    Fall(nfAll) = nm & "_" & vn & ": " & tp & ";  // LH2 v28: локал процедуры " & nm
+                                End If
+                                For kk = 1 To inn: inner(kk) = L2_RenameWord(inner(kk), vn, nm & "_" & vn): Next kk
+                                For kk = 1 To exn: exc(kk) = L2_RenameWord(exc(kk), vn, nm & "_" & vn): Next kk
+                            End If
+                        Next vi
+                    End If
+                End If
+            Next k
+            If inn <= 0 Then
+                L2_PushR out, m, ocap, lines, h, e
+                pos = e + 1
+            Else
+                ' --- v22: try-обёртка + N-частичная резка ---
+                Dim td1 As Long, bn1 As Long
+                Dim base1() As String
+                ReDim base1(1 To inn + 8)
+                td1 = 0
+                For k = 1 To inn: base1(k) = inner(k): Next k
+                bn1 = inn
+                If bn1 > 0 And (Trim(base1(1)) = "try" Or Left(Trim(base1(1)), 4) = "try ") Then
+                    td1 = 1
+                    For k = 2 To bn1: base1(k - 1) = inner(k): Next k
+                    bn1 = bn1 - 1
+                End If
+                Dim di0 As Long
+                ' Ф32 v21: в-блочная резка монолита с дублированием условия (решение владельца 24.11),
+                ' ДО обычной N-резки: у монолита точек dd=0 нет, обычная резка дала бы кусок-монолит.
+                ' Ф32б: если в блоке многострочный цикл - тело цикла выносится в части-процедуры (ниже).
+                Dim monoApplied As Boolean, monoParts As Long, monoMax As Long, monoMsg As String
+                Dim monoCyc As Long, lbA As Long, lbE As Long, llen As Long
+                Dim lhasB As Boolean, lhasE As Boolean, ldd As Long, lpv As Long
+                monoMsg = "": monoParts = 0: monoMax = 0: monoCyc = 0: lbA = 0: lbE = 0
+                monoApplied = L2_MonoSplit(base1, bn1, 4000, monoParts, monoMax, monoMsg, monoCyc)   ' порог в-блочной резки = 4000
+                If monoApplied Then
+                    If td1 = 1 Then
+                        ReDim Preserve inner(1 To bn1 + 1)
+                        inner(1) = "try"
+                        For k = 1 To bn1
+                        inner(k + 1) = base1(k)
+                        Next k
+                        inn = bn1 + 1
+                    Else
+                        ReDim Preserve inner(1 To bn1)
+                        For k = 1 To bn1
+                        inner(k) = base1(k)
+                        Next k
+                        inn = bn1
+                    End If
+                    If monoMax > gMaxPart Then gMaxPart = monoMax
+                    gMonoPieces = gMonoPieces + monoParts
+                    gMonoBlocks = gMonoBlocks + 1
+                    L1_Log "Ф32а v23 [" & nm & "]: " & monoMsg & " -> копии вставлены в тело, режет N-резка"
+                End If
+                If monoCyc = 1 Then
+                    ' --- Ф32б v21: вынос тела цикла-переростка в части-процедуры ---
+                    ' цикл ищется на ЛЮБОЙ глубине: открыватель for/while с begin в строке
+                    ' и без end/until в той же строке; тело цикла - строки до возврата
+                    ' глубины к значению перед циклом; ищем тело > 4000 строк
+                    Dim lws() As String, ltt As String
+                    Dim lcand() As Long, lncand As Long, ld As Long, lpv2 As Long, ljn As Long, lnx As String, lbadn As Boolean
+                    Dim lcts() As Long, llast As Long, ltg As Long, lbs As Long, lj As Long, mp2 As Long, lnP2 As Long
+                    Dim lpn2() As String, lqn2 As String, lnb() As String, lnn2 As Long, lncap As Long
+                    Dim lnewInner() As String, lni2 As Long, lnicap As Long, lbufI2 As String, lpq2() As String, lpqn2 As Long
+                    dd = 0: lbA = 0: lbE = 0
+                    For i = 1 To bn1
+                        t = base1(i)
+                        lpv = dd
+                        dd = dd + L2_Delta(t)
+                        If lbA = 0 Then
+                            ltt = LCase(L2_MonoStrip(t))
+                            If InStr(1, ltt, "for ") > 0 Or InStr(1, ltt, "while ") > 0 Then
+                                lws = L2_MonoWords(ltt)
+                                lhasB = False: lhasE = False
+                                For k = LBound(lws) To UBound(lws)
+                                    If lws(k) = "begin" Or lws(k) = "repeat" Then lhasB = True
+                                    If lws(k) = "end" Or lws(k) = "until" Then lhasE = True
+                                Next k
+                                If lhasB And Not lhasE Then
+                                    lbA = i
+                                    ldd = lpv + L2_Delta(t)
+                                    For j = i + 1 To bn1
+                                        ldd = ldd + L2_Delta(base1(j))
+                                        If ldd = lpv Then
+                                            lbE = j
+                                            Exit For
+                                        End If
+                                    Next j
+                                    If lbE > 0 And (lbE - lbA - 1) > 4000 Then
+                                        Exit For
+                                    Else
+                                        lbA = 0: lbE = 0
+                                    End If
+                                End If
+                            End If
+                        End If
+                    Next i
+                    If lbA = 0 Then
+                        L1_Log "Ф32б v23 [" & nm & "]: тело цикла-переростка не найдено при cycFlag=1 - остаётся как есть"
+                        L2_PushR out, m, ocap, lines, h, e
+                        If (e - b) > gMaxPart Then gMaxPart = e - b
+                        pos = e + 1
+                        GoTo NextPi
+                    End If
+                    llen = lbE - lbA - 1
+                    lncand = 0: ReDim lcand(1 To 64): ld = 0
+                    For i = lbA + 1 To lbE - 1
+                        lpv2 = ld
+                        ld = ld + L2_Delta(base1(i))
+                        If ld = 0 And lpv2 = 0 Then
+                            ltt = Trim(base1(i))
+                            If Left(ltt, 2) = "//" Then
+                                lncand = lncand + 1
+                                If lncand > UBound(lcand) Then ReDim Preserve lcand(1 To lncand * 2)
+                                lcand(lncand) = i - lbA
+                            ElseIf Right(ltt, 1) = ";" And LCase(Left(ltt, 3)) <> "end" And LCase(Left(ltt, 4)) <> "else" Then
+                                ljn = i + 1
+                                Do While ljn <= lbE - 1
+                                    If Len(Trim(base1(ljn))) > 0 Then Exit Do
+                                    ljn = ljn + 1
+                                Loop
+                                lnx = ""
+                                If ljn <= lbE - 1 Then lnx = LCase(Left(Trim(base1(ljn)), 4))
+                                lbadn = (lnx = "else") Or (Left(lnx, 3) = "end") Or (Left(lnx, 4) = "unti") _
+                                    Or (Left(lnx, 1) = "+") Or (Left(lnx, 1) = "-") Or (Left(lnx, 3) = "and") _
+                                    Or (Left(lnx, 2) = "or") Or (Left(lnx, 1) = ".")
+                                If Not lbadn Then
+                                    lncand = lncand + 1
+                                    If lncand > UBound(lcand) Then ReDim Preserve lcand(1 To lncand * 2)
+                                    lcand(lncand) = i - lbA
+                                End If
+                            End If
+                        End If
+                    Next i
+                    If lncand = 0 Then
+                        L1_Log "Ф32б v23 [" & nm & "]: точек реза в теле цикла нет - остаётся как есть"
+                        L2_PushR out, m, ocap, lines, h, e
+                        If (e - b) > gMaxPart Then gMaxPart = e - b
+                        pos = e + 1
+                        GoTo NextPi
+                    End If
+                    di0 = L2_FindDecl(lines, impl, nm)
+                    If di0 = 0 Then
+                        L1_Log "Ф32б v23 [" & nm & "]: без декларации в interface не режем (Ф15) - остаётся как есть"
+                        L2_PushR out, m, ocap, lines, h, e
+                        If (e - b) > gMaxPart Then gMaxPart = e - b
+                        pos = e + 1
+                        GoTo NextPi
+                    End If
+                    lnP2 = (llen + 3999) \ 4000
+                    If lnP2 < 2 Then lnP2 = 2
+                    ReDim lcts(0 To lnP2)
+                    llast = 0
+                    For lj = 1 To lnP2 - 1
+                        ltg = lj * llen \ lnP2
+                        lbs = 0
+                        For k = 1 To lncand
+                            If lcand(k) > llast Then
+                                If lbs = 0 Or Abs(lcand(k) - ltg) < Abs(lbs - ltg) Then lbs = lcand(k)
+                            End If
+                        Next k
+                        If lbs = 0 Then lbs = llen - 1
+                        If lbs >= llen Then lbs = llen - 1
+                        If lbs <= llast Then lbs = llast + 1
+                        lcts(lj) = lbs: llast = lbs
+                    Next lj
+                    lcts(lnP2) = llen
+                    ReDim lpn2(1 To lnP2)
+                    mp2 = 0
+                    For k = 1 To lnP2
+                        lqn2 = nm & L2_Suf(k)
+                        Do While names.Exists(lqn2)
+                            lqn2 = lqn2 & "x"
+                        Loop
+                        names.Add lqn2, 1
+                        lpn2(k) = lqn2
+                    Next k
+                    lncap = 24: ReDim lnb(1 To lncap): lnn2 = 0
+                    For k = 1 To lnP2
+                        L2_PushL lnb, lnn2, lncap, "    " & lpn2(k) & ";  // LH2 v22: часть " & k & " из " & lnP2 & " цикла " & nm
+                    Next k
+                    lnicap = inn + lnn2 + 8
+                    ReDim lnewInner(1 To lnicap): lni2 = 0
+                    For i = 1 To lbA + 1
+                        L2_PushL lnewInner, lni2, lnicap, inner(i)
+                    Next i
+                    For i = 1 To lnn2
+                        L2_PushL lnewInner, lni2, lnicap, lnb(i)
+                    Next i
+                    For i = lbE To inn
+                        L2_PushL lnewInner, lni2, lnicap, inner(i)
+                    Next i
+                    inner = lnewInner: inn = lni2: icap3 = lnicap
+                    lbufI2 = ""
+                    For k = 1 To lnP2
+                        lpqn2 = lcts(k) - lcts(k - 1)
+                        ReDim lpq2(1 To lpqn2)
+                        If lpqn2 > gMaxPart Then gMaxPart = lpqn2
+                        If lpqn2 > mp2 Then mp2 = lpqn2
+                        For i = 1 To lpqn2
+                            lpq2(i) = base1(lbA + lcts(k - 1) + i)
+                        Next i
+                        L2_PushL out, m, ocap, ""
+                        L2_PushL out, m, ocap, "procedure " & cls & "." & lpn2(k) & ";"
+                        L2_PushL out, m, ocap, "begin"
+                        L2_PushR out, m, ocap, lpq2, 1, lpqn2
+                        L2_PushL out, m, ocap, "    Miss_comm:=1; // LH2 v22: расчёт дошёл до конца части"
+                        L2_PushL out, m, ocap, "end;"
+                        lbufI2 = lbufI2 & "    procedure " & lpn2(k) & ";      // LH2 v22: часть " & k & " из " & lnP2 & " цикла " & nm & vbCrLf
+                    Next k
+                    nin = nin + 1
+                    If nin > icap2 Then icap2 = icap2 * 2: ReDim Preserve inIdx(1 To icap2): ReDim Preserve inTxt(1 To icap2)
+                    inIdx(nin) = di0: inTxt(nin) = lbufI2
+                    L2_PushR out, m, ocap, lines, h, h
+                    L2_PushL out, m, ocap, "begin"
+                    If td1 = 1 Then L2_PushL out, m, ocap, "  try"
+                    If td1 = 1 Then L2_PushR out, m, ocap, inner, 2, inn Else L2_PushR out, m, ocap, inner, 1, inn
+                    L2_PushR out, m, ocap, exc, 1, exn
+                    L2_PushL out, m, ocap, "end;"
+                    nspl = nspl + 1
+                    nChunks = nChunks + lnP2
+                    L1_Log "Ф32б v23 [" & nm & "]: тело цикла " & CStr(llen) & " строк -> " & CStr(lnP2) & " частей, макс. часть " & CStr(mp2)
+                        If Not splitsD.Exists(nm) Then splitsD.Add nm, lnP2 Else splitsD(nm) = lnP2   ' v23: Ф32б регистрирует число частей
+                    pos = e + 1
+                    GoTo NextPi
+                End If
+                di0 = L2_FindDecl(lines, impl, nm)
+                Dim cand1() As Long, ncand1 As Long
+                ReDim cand1(1 To 64)
+                If bn1 > 0 Then L2_CutCandidates base1, bn1, cand1, ncand1, 0     ' v26: рез только между top-level строками (рез по dd=1 ломал циклы for)
+                If bn1 < 2 Or ncand1 = 0 Then
+                    ' --- обычная резка невозможна: блок-переросток (N частей) ---
+                    Dim blkApplied As Boolean: blkApplied = False
+                    Dim dSt As Long, stCnt As Long
+                    Dim stStack() As Long: ReDim stStack(1 To 64): stCnt = 0
+                    Dim bbA() As Long, bbE() As Long, nbb As Long
+                    ReDim bbA(1 To 16): ReDim bbE(1 To 16): nbb = 0
+                    Dim pv As Long
+                    For k = 1 To inn
+                        pv = dSt
+                        dSt = dSt + L2_Delta(inner(k))
+                        If pv = 0 And dSt > 0 Then
+                            stCnt = stCnt + 1
+                            If stCnt > UBound(stStack) Then ReDim Preserve stStack(1 To stCnt * 2)
+                            stStack(stCnt) = k
+                        End If
+                        If dSt = 0 And pv > 0 And stCnt = 1 Then
+                            If (k - stStack(1) - 1) >= 2 Then
+                                nbb = nbb + 1
+                                If nbb > UBound(bbA) Then ReDim Preserve bbA(1 To nbb * 2): ReDim Preserve bbE(1 To nbb * 2)
+                                bbA(nbb) = stStack(1): bbE(nbb) = k
+                            End If
+                            stCnt = stCnt - 1
+                        End If
+                    Next k
+                    Dim bi As Long
+                    For bi = nbb To 1 Step -1
+                        Dim oB As Long, eB As Long
+                        oB = bbA(bi): eB = bbE(bi)
+                        Dim bbLen As Long: bbLen = eB - oB - 1
+                        If bbLen >= 2 Then
+                            Dim bh() As String: ReDim bh(1 To bbLen)
+                            For k = 1 To bbLen: bh(k) = inner(oB + k): Next k
+                            Dim c2() As Long, n2 As Long
+                            ReDim c2(1 To 64): n2 = 0
+                            L2_CutCandidates bh, bbLen, c2, n2, 0
+                            If n2 > 0 Then
+                                Dim nP2 As Long
+                                nP2 = 2
+                                Dim cts2() As Long, last2 As Long, nk2 As Long, tg2 As Long, bs2 As Long, bi2 As Long
+                                ReDim cts2(0 To nP2 + 1)     ' v26: 0-based - чтение cts2(nk2-1) при nk2=1
+                                last2 = 0
+                                For nk2 = 1 To nP2 - 1
+                                    tg2 = nk2 * bbLen \ nP2
+                                    bs2 = 0
+                                    For bi2 = 1 To n2
+                                        If c2(bi2) > last2 Then
+                                            If bs2 = 0 Or Abs(c2(bi2) - tg2) < Abs(bs2 - tg2) Then bs2 = c2(bi2)
+                                        End If
+                                    Next bi2
+                                    If bs2 = 0 Then bs2 = bbLen - 1
+                                    If bs2 >= bbLen Then bs2 = bbLen - 1     ' v26: щит пустой части 2
+                                    cts2(nk2) = bs2: last2 = bs2
+                                Next nk2
+                                cts2(nP2) = bbLen
+                                Dim pn2() As String, qn2 As String
+                                ReDim pn2(1 To nP2)
+                                For nk2 = 1 To nP2
+                                    qn2 = nm & L2_Suf(nk2)
+                                    Do While names.Exists(qn2): qn2 = qn2 & "x": Loop
+                                    names.Add qn2, 1
+                                    pn2(nk2) = qn2
+                                Next nk2
+                                Dim nb() As String, nn2 As Long, ncap As Long
+                                ncap = 24: ReDim nb(1 To ncap): nn2 = 0
+                                For nk2 = 1 To nP2
+                                    L2_PushL nb, nn2, ncap, "    " & pn2(nk2) & ";  // LH2 v22: часть " & nk2 & " из " & nP2 & " блока " & nm
+                                Next nk2
+                                Dim newInner() As String, ni2 As Long, nicap As Long
+                                nicap = inn + nn2 + 8: ReDim newInner(1 To nicap): ni2 = 0
+                                For k = 1 To oB + 1: L2_PushL newInner, ni2, nicap, inner(k): Next k
+                                For k = 1 To nn2: L2_PushL newInner, ni2, nicap, nb(k): Next k
+                                For k = eB To inn: L2_PushL newInner, ni2, nicap, inner(k): Next k
+                                inner = newInner: inn = ni2: icap3 = nicap
+                                Dim bufI2 As String: bufI2 = ""
+                                For nk2 = 1 To nP2
+                                    Dim pq2() As String, pqn2 As Long
+                                    pqn2 = cts2(nk2) - cts2(nk2 - 1)
+                                    ReDim pq2(1 To pqn2)
+                                    If pqn2 > gMaxPart Then gMaxPart = pqn2
+                                    For k = 1 To pqn2: pq2(k) = bh(cts2(nk2 - 1) + k): Next k
+                                    L2_PushL out, m, ocap, ""
+                                    L2_PushL out, m, ocap, "procedure " & cls & "." & pn2(nk2) & ";"
+                                    L2_PushL out, m, ocap, "begin"
+                                    L2_PushR out, m, ocap, pq2, 1, pqn2
+                                    L2_PushL out, m, ocap, "    Miss_comm:=1; // LH2 v22: расчёт дошёл до конца части"
+                                    L2_PushL out, m, ocap, "end;"
+                                    bufI2 = bufI2 & "    procedure " & pn2(nk2) & ";      // LH2 v22: часть " & nk2 & " из " & nP2 & " блока процедуры " & nm & vbCrLf
+                                Next nk2
+                                nin = nin + 1
+                                If nin > icap2 Then icap2 = icap2 * 2: ReDim Preserve inIdx(1 To icap2): ReDim Preserve inTxt(1 To icap2)
+                                inIdx(nin) = di0: inTxt(nin) = bufI2
+                                If Not splitsD.Exists(nm) Then splitsD.Add nm, nP2 Else splitsD(nm) = nP2
+                                blkApplied = True
+                                nChunks = nChunks + nP2
+                                nspl = nspl + 1
+                            End If
+                        End If
+                    Next bi
+                    If Not blkApplied Then
+                        ' разрез невозможен: остаётся как есть
+                        L2_PushR out, m, ocap, lines, h, e
+                        If (e - b) > gMaxPart Then gMaxPart = e - b
+                    Else
+                        ' обёртка try/вызовы/except (внутренний блок уже с вызовами частей)
+                        L2_PushR out, m, ocap, lines, h, h
+                        L2_PushL out, m, ocap, "begin"
+                        If td1 = 1 Then L2_PushL out, m, ocap, "  try"     ' v26: try только если тело имело try
+                        If td1 = 1 Then L2_PushR out, m, ocap, inner, 2, inn Else L2_PushR out, m, ocap, inner, 1, inn
+                        L2_PushR out, m, ocap, exc, 1, exn
+                        L2_PushL out, m, ocap, "end;"
+                    End If
+                Else
+                    ' --- N частей обычной резки (с учётом try-обёртки) ---
+                    Dim nP1 As Long
+                    nP1 = 2
+                    If bn1 > 6000 Then nP1 = (bn1 + 5999) \ 6000   ' Ф11 v34: части > 6000 строк режутся на N (слоты 2N-1/2N + 53..99)
+                    Dim cts1() As Long, last1 As Long, nk1 As Long, tg1 As Long, bs1 As Long, bi1 As Long
+                    ReDim cts1(0 To nP1 + 1)     ' v26: 0-based - чтение cts1(nk1-1) при nk1=1
+                    last1 = 0
+                    For nk1 = 1 To nP1 - 1
+                        tg1 = nk1 * bn1 \ nP1
+                        bs1 = 0
+                        For bi1 = 1 To ncand1
+                            If cand1(bi1) > last1 Then
+                                If bs1 = 0 Or Abs(cand1(bi1) - tg1) < Abs(bs1 - tg1) Then bs1 = cand1(bi1)
+                            End If
+                        Next bi1
+                        If bs1 = 0 Then bs1 = bn1 - 1
+                        If bs1 >= bn1 Then bs1 = bn1 - 1     ' v26: щит пустой части 2
+                        cts1(nk1) = bs1: last1 = bs1
+                    Next nk1
+                    cts1(nP1) = bn1
+                    Dim pn1() As String, qn1 As String
+                    ReDim pn1(1 To nP1)
+                    For nk1 = 1 To nP1
+                        qn1 = nm & L2_Suf(nk1)
+                        Do While names.Exists(qn1): qn1 = qn1 & "x": Loop
+                        names.Add qn1, 1
+                        pn1(nk1) = qn1
+                    Next nk1
+                    L2_PushR out, m, ocap, lines, h, h
+                    L2_PushL out, m, ocap, "begin"
+                    If td1 = 1 Then L2_PushL out, m, ocap, "  try"
+                    For nk1 = 1 To nP1
+                        L2_PushL out, m, ocap, "    " & pn1(nk1) & ";  // LH2 v22: часть " & nk1 & " из " & nP1 & " процедуры " & nm
+                    Next nk1
+                    L2_PushR out, m, ocap, exc, 1, exn
+                    L2_PushL out, m, ocap, "end;"
+                    Dim bufI1 As String: bufI1 = ""
+                    For nk1 = 1 To nP1
+                        Dim pq1() As String, pqn1 As Long
+                        pqn1 = cts1(nk1) - cts1(nk1 - 1)
+                        ReDim pq1(1 To pqn1)
+                        If pqn1 > gMaxPart Then gMaxPart = pqn1
+                        For k = 1 To pqn1: pq1(k) = base1(cts1(nk1 - 1) + k): Next k
+                        L2_PushL out, m, ocap, ""
+                        L2_PushL out, m, ocap, "procedure " & cls & "." & pn1(nk1) & ";"
+                        L2_PushL out, m, ocap, "begin"
+                        L2_PushR out, m, ocap, pq1, 1, pqn1
+                        L2_PushL out, m, ocap, "    Miss_comm:=1; // LH2 v22: расчёт дошёл до конца части"
+                        L2_PushL out, m, ocap, "end;"
+                        bufI1 = bufI1 & "    procedure " & pn1(nk1) & ";      // LH2 v22: часть " & nk1 & " из " & nP1 & " процедуры " & nm & vbCrLf
+                    Next nk1
+                    nin = nin + 1
+                    If nin > icap2 Then icap2 = icap2 * 2: ReDim Preserve inIdx(1 To icap2): ReDim Preserve inTxt(1 To icap2)
+                    inIdx(nin) = di0: inTxt(nin) = bufI1
+                    If Not splitsD.Exists(nm) Then splitsD.Add nm, nP1 Else splitsD(nm) = nP1
+                    nspl = nspl + 1
+                    nChunks = nChunks + nP1
+                End If
+            End If
+        End If
+            pos = e + 1
+NextPi:
+        Next pi
+    L2_PushR out, m, ocap, lines, pos, n
+    ' --- единый блок полей в начало первой секции видимости класса ---
+    If nfAll > 0 Then
+        For k = 1 To impl - 1
+            If InStr(LCase(lines(k)), "=class(") > 0 Then
+                clsLn = k: Exit For
+            End If
+        Next k
+        If clsLn > 0 Then
+            For k = clsLn + 1 To impl - 1
+                t = LCase(Trim(lines(k)))
+                If t = "private" Or t = "public" Or t = "protected" Or t = "published" Then
+                    secLn = k: Exit For
+                End If
+            Next k
+        End If
+        ' Ф10 v34: блок полей вставляется ПОСЛЕ цикла вставок (не через inIdx) - иначе
+        ' fAll-вставка (первая из-за обратного обхода inIdx) сдвигает позиции bufI1-вставок,
+        ' они попадают ВНУТРЬ блока полей и разрывают его: FPC "Fields cannot appear after a method".
+        Dim faIdx As Long, faTxt As String
+        faTxt = ""
+        For k = 1 To nfAll
+            faTxt = faTxt & "    " & Fall(k) & vbCrLf
+        Next k
+        If secLn > 0 Then
+            faIdx = secLn
+        Else
+            ' FIX v36 (Ф16): БЕЗ вставки секции private - она делает ВСЕ последующие
+            '      члены класса private, а private-члены родителя невидимы наследнику
+            '      из другого юнита: в _0 не находились WorkLog1..WorkLogBU (FPC
+            '      "Identifier not found", 9 ошибок). Воспроизведено и снято FPC
+            '      3.2.2 на комплекте 13.11: снятие private в _01/_1/_2/main -
+            '      все 8 юнитов компилируются 0 ошибок. Поля вставляются сразу
+            '      после строки класса в видимости по умолчанию (как члены исходника).
+            faIdx = clsLn
+        End If
+    End If
+    ' --- вставка объявлений (после строк-якорей), в обратном порядке ---
+    Dim ii As Long
+    For ii = nin To 1 Step -1
+        Dim nl() As String, nn As Long
+        nn = 0
+        Dim seg As Variant
+        For Each seg In Split(inTxt(ii), vbCrLf)
+            nn = nn + 1
+            ReDim Preserve nl(1 To nn)
+            nl(nn) = CStr(seg)
+        Next seg
+        If nn > 0 Then If Len(nl(nn)) = 0 Then nn = nn - 1
+        Dim newOut() As String, mo As Long, co As Long, posn As Long
+        co = m + nn + 8: ReDim newOut(1 To co): mo = 0
+        For posn = 1 To inIdx(ii)
+            L2_PushL newOut, mo, co, out(posn)
+        Next posn
+        For posn = 1 To nn
+            L2_PushL newOut, mo, co, nl(posn)
+        Next posn
+        For posn = inIdx(ii) + 1 To m
+            L2_PushL newOut, mo, co, out(posn)
+        Next posn
+        out = newOut: m = mo: cap = co
+    Next ii
+    ' Ф10 v34: единый блок полей - ПОСЛЕ всех вставок деклараций частей
+    If nfAll > 0 And faIdx > 0 And Len(faTxt) > 0 Then
+        Dim faLines() As String, faN As Long, faOut() As String, faM As Long, faCap As Long, faPos As Long
+        faN = 0
+        Dim faSeg As Variant
+        For Each faSeg In Split(faTxt, vbCrLf)
+            faN = faN + 1
+            ReDim Preserve faLines(1 To faN)
+            faLines(faN) = CStr(faSeg)
+        Next faSeg
+        If faN > 0 Then If Len(faLines(faN)) = 0 Then faN = faN - 1
+        faCap = m + faN + 8: ReDim faOut(1 To faCap): faM = 0
+        For faPos = 1 To faIdx
+            L2_PushL faOut, faM, faCap, out(faPos)
+        Next faPos
+        For faPos = 1 To faN
+            L2_PushL faOut, faM, faCap, faLines(faPos)
+        Next faPos
+        For faPos = faIdx + 1 To m
+            L2_PushL faOut, faM, faCap, out(faPos)
+        Next faPos
+        out = faOut: m = faM: cap = faCap
+    End If
+    ' Ф12 v34: глобальные for-счётчики - блок "var ..." перед implementation юнита
+    If ng > 0 Then
+        Dim gTxt As String, gi2 As Long
+        gTxt = ""
+        For gi2 = 1 To ng
+            gTxt = gTxt & "  " & gAll(gi2) & vbCrLf
+        Next gi2
+        Dim gImpl As Long
+        gImpl = 0
+        For gi2 = 1 To m
+            If Trim(out(gi2)) = "implementation" Then
+                gImpl = gi2: Exit For
+            End If
+        Next gi2
+        If gImpl > 1 Then
+            Dim gLines() As String, gN As Long, gOut() As String, gM As Long, gCap As Long, gPos As Long
+            gN = 0
+            ReDim gLines(1 To ng + 2)
+            gN = gN + 1: gLines(gN) = "var"
+            For gi2 = 1 To ng
+                gN = gN + 1: gLines(gN) = "  " & gAll(gi2)
+            Next gi2
+            gCap = m + gN + 8: ReDim gOut(1 To gCap): gM = 0
+            For gPos = 1 To gImpl - 1
+                L2_PushL gOut, gM, gCap, out(gPos)
+            Next gPos
+            For gPos = 1 To gN
+                L2_PushL gOut, gM, gCap, gLines(gPos)
+            Next gPos
+            For gPos = gImpl To m
+                L2_PushL gOut, gM, gCap, out(gPos)
+            Next gPos
+            out = gOut: m = gM: cap = gCap
+        End If
+    End If
+    fn = FreeFile
+    Open fPath For Output As #fn
+    For i = 1 To m
+        Print #fn, out(i)
+    Next i
+    Close #fn
+    L2_Split = nspl
+End Function
+'=====================================================================
+' ДИСПЕТЧЕР main.Work: разбитые Work_N -> пары a/b (слоты 2N-1/2N),
+' неразбитые -> слот 2N-1; WorkZero остаётся на своём слоте.
+'=====================================================================
+Private Function L2_Disp(ByVal fPath As String, ByRef splitsD As Object) As Long
+    Dim fn As Integer, lines() As String, n As Long, cap As Long, ln As String
+    Dim i As Long, k As Long, t As String
+    Dim out() As String, m As Long, ocap As Long
+    Dim nb As Long: nb = 0
+    L2_Disp = 0
+    If Len(Dir(fPath)) = 0 Then Exit Function
+    fn = FreeFile
+    Open fPath For Input As #fn
+    n = 0: cap = 1000: ReDim lines(1 To cap)
+    Do While Not EOF(fn)
+        Line Input #fn, ln
+        n = n + 1
+        If n > cap Then cap = cap * 2: ReDim Preserve lines(1 To cap)
+        lines(n) = ln
+    Loop
+    Close #fn
+    ReDim Preserve lines(1 To n)
+    If n < 50 Then Exit Function
+    ' предскан блоков вызовов: [gate/begin/Miss_comm/call/6-reg/end;/Log]
+    Dim bS() As Long, bC() As Long, be() As Long, bL() As Long
+    ReDim bS(1 To 64): ReDim bC(1 To 64): ReDim be(1 To 64): ReDim bL(1 To 64)
+    i = 1
+    Do While i <= n
+        Dim matched As Boolean: matched = False
+        t = Trim(lines(i))
+        ' v26: было Left(LCase(t), 6) - 'work_1' по 6 символам = 'work_1' и диспетчер не срабатывал НИКОГДА
+        If (Left(LCase(t), 5) = "work_" Or LCase(t) = "workzero;") And Right(t, 1) = ";" And InStr(t, " ") = 0 Then
+            If i >= 4 Then
+                Dim g As String: g = Trim(lines(i - 3))
+                If InStr(LCase(g), "miss_ind[") > 0 And Trim(lines(i - 2)) = "begin" And InStr(lines(i - 1), "Miss_comm") > 0 Then
+                    Dim e0 As Long: e0 = i
+                    Do While e0 < n
+                        If Trim(lines(e0 + 1)) = "end;" Then Exit Do
+                        e0 = e0 + 1
+                    Loop
+                    nb = nb + 1
+                    If nb > UBound(bS) Then
+                        ReDim Preserve bS(1 To nb * 2): ReDim Preserve bC(1 To nb * 2)
+                        ReDim Preserve be(1 To nb * 2): ReDim Preserve bL(1 To nb * 2)
+                    End If
+                    bS(nb) = i - 3: bC(nb) = i: be(nb) = e0 + 1: bL(nb) = e0 + 2
+                    i = e0 + 2
+                    matched = True
+                End If
+            End If
+        End If
+        If Not matched Then i = i + 1
+    Loop
+    Dim starts As Object: Set starts = CreateObject("Scripting.Dictionary")
+    For i = 1 To nb: starts(CStr(bS(i))) = i: Next i
+    ocap = n + 256: ReDim out(1 To ocap): m = 0
+    i = 1
+    Do While i <= n
+        If starts.Exists(CStr(i)) Then
+            Dim bi As Long: bi = starts(CStr(i))
+            Dim ci As Long: ci = bC(bi)
+            Dim nm As String: nm = Trim(Left(Trim(lines(ci)), Len(Trim(lines(ci))) - 1))
+            Dim s As Long: s = 0
+            For k = ci + 1 To ci + 6
+                If k <= n Then
+                    If InStr(lines(k), "Miss_proc[") > 0 Then
+                        Dim sPos As Long: sPos = InStr(lines(k), "Miss_proc[")
+                        Dim sEnd As Long: sEnd = InStr(sPos, lines(k), "]")
+                        If sEnd > sPos Then s = CLng(Trim(Mid(lines(k), sPos + 11, sEnd - sPos - 11)))
+                        Exit For
+                    End If
+                End If
+            Next k
+            If LCase(nm) = "workzero" Then
+                L2_PushR out, m, ocap, lines, bS(bi), bL(bi)
+            Else
+                Dim nn As Long: nn = 0
+                If LCase(Left(nm, 5)) = "work_" Then nn = CLng(Mid(nm, 6))
+                If nn > 0 Then
+                    Dim nPK As Long
+                    nPK = 1
+                    If splitsD.Exists(nm) Then nPK = CLng(splitsD(nm))
+                    If nPK < 1 Then nPK = 1
+                    Dim gate As String: gate = lines(bS(bi))
+                    Dim lg As String
+                    Dim pArr As Long, slK As Long, pnn As String
+                    For pArr = 1 To nPK
+                        If pArr = 1 Then
+                            slK = 2 * nn - 1
+                        ElseIf pArr = 2 Then
+                            slK = 2 * nn
+                        Else
+                            If AB_SLOT > 99 Then slK = 99 Else slK = AB_SLOT: AB_SLOT = AB_SLOT + 1
+                        End If
+                        If nPK = 1 Then
+                            pnn = nm
+                        Else
+                            pnn = nm & L2_Suf(pArr)
+                        End If
+                        If nPK > 1 Then L2_Disp = L2_Disp + 1
+                        L2_PushL out, m, ocap, L2_SlotSub(gate, slK)
+                        L2_PushL out, m, ocap, lines(bS(bi) + 1)
+                        L2_PushL out, m, ocap, lines(bS(bi) + 2)
+                        L2_PushL out, m, ocap, pnn & ";  // LH2 v22"
+                        If nPK > 1 Then
+                            L2_RegLinesDisp out, m, ocap, slK, pnn
+                        Else
+                            For k = ci + 1 To be(bi) - 1
+                                L2_PushL out, m, ocap, L2_SlotAll(lines(k), slK)
+                            Next k
+                        End If
+                        L2_PushL out, m, ocap, lines(be(bi))   ' v23: end; ВСЕГДА (раньше только при nPK>1 - терялся end; у нерезаных Work_N)
+                        lg = lines(bL(bi))
+                        If nPK > 1 Then lg = Replace(lg, " " & nm & " - SUCSESS ", " " & pnn & " - SUCSESS ")
+                        L2_PushL out, m, ocap, lg
+                    Next pArr
+                Else
+                    ' не Work_N (WorkZero и прочее) - без изменений
+                    L2_PushR out, m, ocap, lines, bS(bi), bL(bi)
+                End If
+            End If
+            i = bL(bi) + 1
+        Else
+            L2_PushL out, m, ocap, lines(i)
+            i = i + 1
+        End If
+    Loop
+    fn = FreeFile
+    Open fPath For Output As #fn
+    For i = 1 To m
+        Print #fn, out(i)
+    Next i
+    Close #fn
+End Function
+'=====================================================================
+' ДЕКЛАРАЦИИ (вставляются в декларационный юнит _00 после array-строки)
+'=====================================================================
+'=====================================================================
+' ГЛАВНЫЙ КОНВЕРТОР v4: папка с юнитами -> *_LH3.txt
+'=====================================================================
+' --- LH3 v4: лог в файл (диагностика) - без модульных переменных ---
+Private Sub L1_Log(ByVal s As String)
+    Dim lf As Integer, lp As String
+    On Error Resume Next
+    lp = CurDir & "\LH3_convert_debug.log"
+    lf = FreeFile
+    Open lp For Append As #lf
+    Print #lf, s
+    Close #lf
+End Sub
+
+' Ф55: СТОП-инвариант приёмки. Меряет ТЕЛО процедуры dd-сканом от begin до парного end.
+' Вызывается ПОСЛЕ последнего прохода резки по выходному файлу; накапливает нарушения.
+' Решение о выпуске комплекта принимает основной процесс по LH3_StopFlag.
+Private Sub LH3_StopCheck(ByVal pth As String, ByVal outn As String)
+    Dim fPath As String, f1 As Integer
+    Dim L() As String, n As Long, ln As String
+    Dim i As Long, k As Long, hdr As Long, bi As Long, ei As Long
+    Dim dd As Long, body As Long, t As String, nm As String
+    fPath = pth & outn
+    If Dir(fPath) = "" Then Exit Sub
+    ReDim L(1 To 4096): n = 0
+    f1 = FreeFile
+    Open fPath For Input As #f1
+    Do While Not EOF(f1)
+        If n = UBound(L) Then ReDim Preserve L(1 To UBound(L) * 2)
+        n = n + 1
+        Line Input #f1, ln
+        L(n) = ln
+    Loop
+    Close #f1
+    If n = 0 Then Exit Sub
+    ReDim Preserve L(1 To n)
+    i = 1
+    Do While i <= n
+        t = Trim(L(i))
+        If Left(t, 10) = "procedure " Then
+            hdr = i
+            Do While hdr <= n
+                If Right(Trim(L(hdr)), 1) = ";" Then Exit Do
+                hdr = hdr + 1
+            Loop
+            If hdr > n Then Exit Do
+            nm = Trim(L(hdr))
+            nm = Left(nm, Len(nm) - 1)
+            If InStr(nm, "(") > 0 Then nm = Trim(Left(nm, InStr(nm, "(") - 1))
+            bi = 0
+            For k = hdr + 1 To n
+                t = Trim(L(k))
+                If t = "begin" Then
+                    bi = k
+                    Exit For
+                End If
+                If Left(t, 10) = "procedure " Or Left(t, 9) = "function " Then Exit For
+                If t = "implementation" Or t = "end." Then Exit For
+            Next k
+            If bi > 0 Then
+                dd = 0: ei = 0
+                For k = bi + 1 To n
+                    dd = dd + L2_Delta(L(k))
+                    If dd < 0 Then
+                        ei = k
+                        Exit For
+                    End If
+                Next k
+                If ei > bi Then
+                    body = ei - bi - 1
+                    If body > LH3_SAFE_LINE Then
+                        LH3_StopCnt = LH3_StopCnt + 1
+                        LH3_StopFlag = True
+                        If LH3_StopCnt <= 10 Then
+                            LH3_StopMsg = LH3_StopMsg & "  " & nm & " = " & CStr(body) & " строк  (" & outn & ")" & vbCrLf
+                        End If
+                    End If
+                    i = ei
+                End If
+            End If
+        End If
+        i = i + 1
+    Loop
+End Sub
+Sub LH3_Convert()
+    LH3_StopFlag = False: LH3_StopMsg = "": LH3_StopCnt = 0   ' Ф55
+    Dim pth As String, fn As String, outn As String, ln As String
+    Dim s As String, nm As String, s2 As String, rest As String, gv As String
+    Dim pl As String, hold As String
+    Dim i As Long, p1 As Long, p2 As Long, p3 As Long, p4 As Long, n As Long
+    Dim chi As Long, SZ As Long, csh As Boolean
+    Dim f1 As Integer, f2 As Integer
+    Dim curN As Long, hDone As Boolean, dDone As Boolean, noTail As Boolean
+    Dim totB As Long, totH As Long
+    Dim totC As Long
+    Dim fileList() As String, nFiles As Long, fi As Long
+    Dim PD As Object
+    Dim dd As Long, ddA As Long
+    Dim g48 As Long, g48lvl As Long, Fall As Boolean
+    Dim nA1 As Long, nA2 As Long, nE27 As Long
+    Dim EdgePairs As Object, Tprev As Object   ' v4: рёбра FR_C (N|S) и Tprev-имена
+    Dim SW_T2 As Long, SW_T3 As Long, SW_A6 As Long, SW_F12 As Long, SW_B5 As Long, SW_A9 As Long, SW_PH As Long
+    Dim SW_OIM As Long, SW_EGFIX As Long, SW_NORM As Long, SW_ROI As Long, SW_SHCW As Long, SW_SHCN As Long
+    Dim SW_NOSWAP As Long, SW_ROSMO As Long, SW_STOR4 As Long, SW_B8 As Long, SW_B11 As Long, SW_B12 As Long
+    Dim SW_B14 As Long, SW_B15 As Long, SW_FREPS As Long, SW_CNT As Long, SW_SYM As Long, SW_B2P As Long, SW_TST As Long, SW_SKL As Long
+    Dim SW_PSC As Long, SW_KFP As Long, SW_RP As Long
+    Dim buf8 As String                          ' v4: окно 8 строк (для F12) в проходе 1
+    If Not L1_CanaryPowers() Then
+        MsgBox "LH3 v26 (Ф36.2): канарейка Power<->Exp / критерий 2.7182 FAIL - конвертация не выпускается", vbCritical, "LH3 v26"
+        Exit Sub
+    End If
+    Dim re As Object, mc As Object, ml As Object, mk As Variant
+    Dim t0 As Single: Dim nPrn As Long: Dim mb As Single: Dim ixPrev As Long: Dim nStuck As Long: Dim dSB As Boolean: Dim dXX0 As Boolean, dZZ0 As Boolean, dISTO As Boolean
+    Dim thr As Long, mainOut As String, tb As Long
+    Dim totSp As Long, totCh As Long, totD As Long
+    Dim nCImem As Long, nCIfail As Long
+    Dim splitsD As Object: Set splitsD = CreateObject("Scripting.Dictionary")
+    thr = 0: mainOut = "": totSp = 0: totCh = 0: totD = 0: nDub = 0: totNoParam = 0: nCImem = 0: nCIfail = 0
+    AB_SLOT = 53
+
+    Set PD = CreateObject("Scripting.Dictionary")
+    ' --- инициализация флагов правил v4 (0 = выключить правило при отладке) ---
+    SW_T2 = 0: SW_T3 = 1: SW_A6 = 1: SW_F12 = 1: SW_B5 = 1: SW_A9 = 1: SW_PH = 1
+    SW_OIM = 1: SW_EGFIX = 1: SW_NORM = 1: SW_ROI = 1: SW_SHCW = 1: SW_SHCN = 1
+    SW_NOSWAP = 1: SW_ROSMO = 1: SW_STOR4 = 1: SW_B8 = 1: SW_B11 = 1: SW_B12 = 1
+    SW_B14 = 1: SW_B15 = 1: SW_FREPS = 1: SW_CNT = 1: SW_SYM = 1: SW_B2P = 0: SW_TST = 1: SW_SKL = 1
+    SW_PSC = 1: SW_KFP = 1: SW_RP = 0
+    Set EdgePairs = CreateObject("Scripting.Dictionary")
+    Set Tprev = CreateObject("Scripting.Dictionary")
+
+    ' --- выбор папки: старт диалога с корня книги/документа с макросом ---
+    Dim pth0 As String
+    On Error Resume Next
+    pth0 = Application.ActiveDocument.path           ' Word: активный документ
+    If Err.Number <> 0 Then Err.Clear
+    If Len(pth0) = 0 Then pth0 = Application.ActiveWorkbook.path   ' Excel: активная книга
+    If Err.Number <> 0 Then Err.Clear
+    If Len(pth0) = 0 Then pth0 = Application.VBE.ActiveVBProject.Filename   ' файл проекта, если доступ к VBE разрешён
+    If Err.Number <> 0 Then Err.Clear
+    On Error GoTo 0
+    If InStrRev(pth0, ".") > InStrRev(pth0, "\") Then pth0 = Left(pth0, InStrRev(pth0, "\") - 1)   ' от файла проекта - до папки
+    If Len(pth0) = 0 Then pth0 = CurDir
+    Debug.Print "LH3 v25: старт; стартовая папка диалога: " & pth0: L1_Log "LH3 v24: старт " & Now: L1_Log "LH3 v24: старт " & Now
+    ' Ф44 (v31): U4-интеграция БЕЗ compile-зависимости от модуля U4_UI (универсальный модуль):
+    '      путь запрашивается через Application.Run("U4_GetPTH") - в Utilite_4 возвращает U4_PTH
+    '      (кнопка кладёт туда ячейку C4 листа U4, после прогона U4_UI сбрасывает); в основном
+    '      генераторе U4_UI нет -> Err 1004, путь остаётся пустым -> открывается свой диалог.
+    '      Один и тот же модуль компилируется и в утилите, и в генераторе (при обеих открытых
+    '      книгах Run берёт первую найденную U4_GetPTH - путь, как правило, пуст -> свой диалог).
+    pth = ""
+    On Error Resume Next
+    pth = Application.Run("U4_GetPTH")   ' U4_UI: Public U4_GetPTH -> U4_PTH
+    On Error GoTo 0
+    If Len(pth) > 0 Then
+        If Right(pth, 1) <> "\" Then pth = pth & "\" 
+    Else
+        With Application.FileDialog(msoFileDialogFolderPicker)
+            .Title = "LH3 v4: папка с юнитами проекта 19.785 (м2-комплект)"
+            If Len(pth0) > 0 Then
+                If Right(pth0, 1) <> "\" Then pth0 = pth0 & "\"
+                .InitialFileName = pth0
+            End If
+            If .Show <> -1 Then Exit Sub
+            pth = .SelectedItems(1)
+            If Right(pth, 1) <> "\" Then pth = pth & "\"
+        End With
+    End If
+
+    ' --- проход 1: список, защита, chi, SZ, пресеты, рёбра FR_C, Tprev-имена ---
+    ' --- форма прогресса (как в LH2 v34: ufProgress + PrPro из книги владельца) ---
+    ufProgress.Show (0)
+    PrPro 0, "LH3: подготовка..."
+    Debug.Print "LH3 v5: проход 1 (скан файлов)..."
+    chi = 0: csh = False: SZ = 0: nFiles = 0
+    ReDim fileList(1 To 200)
+    fn = Dir(pth & "*.txt")
+    Do While fn <> ""
+        If fn Like "*_LH3.txt" Then
+            MsgBox "LH3: в папке уже есть файлы _LH3 (" & fn & ") - детектор уже применён к проекту." & vbCrLf & _
+                   "Удалите старые *_LH3-файлы и запустите заново. Конверсия не выполнялась.", vbExclamation, "LH3 v4"
+            On Error Resume Next: Unload ufProgress: On Error GoTo 0   ' LH3 v4: форма не должна висеть
+            Exit Sub
+        End If
+        nFiles = nFiles + 1
+        If nFiles > UBound(fileList) Then ReDim Preserve fileList(1 To UBound(fileList) + 200)
+        fileList(nFiles) = fn
+        fn = Dir
+    Loop
+
+    For fi = 1 To nFiles
+        fn = fileList(fi)
+        PrPro fi / nFiles * 10, "Скан: " & fn
+        buf8 = ""
+        Debug.Print "    скан: " & fn
+        f1 = FreeFile: Open pth & fn For Input As #f1
+        Do While Not EOF(f1)
+            Line Input #f1, ln
+            If InStr(ln, "LH3 v") > 0 Or InStr(ln, "NaN_t[") > 0 Or InStr(ln, "INOFF") > 0 Then
+                Close #f1
+                MsgBox "LH3: детектор уже стоит в проекте (маркер найден в " & fn & ").", vbExclamation, "LH3 v4"
+                On Error Resume Next: Unload ufProgress: On Error GoTo 0   ' LH3 v4: форма не должна висеть
+                Exit Sub
+            End If
+            If InStr(ln, "for (int") > 0 Or InStr(ln, "Math.") > 0 Then csh = True
+            p1 = InStr(ln, "Давление и расход")
+            If p1 > 0 Then
+                p2 = InStr(1, ln, "#")
+                If p2 > 0 And p2 < p1 Then
+                    n = Val(Trim(Mid(ln, p2 + 1, p1 - p2 - 1)))
+                    If n > chi Then chi = n
+                End If
+            End If
+            If InStr(ln, "ISTO_p") > 0 And InStr(ln, "array") > 0 Then
+                p1 = InStr(ln, "array[1..")
+                If p1 > 0 And SZ = 0 Then SZ = Val(Trim(Mid(ln, p1 + 9)))
+            End If
+            ' пресеты _0i
+            If fn Like "*_0i.txt" Then
+                s2 = Trim(ln)
+                p1 = InStr(s2, ":=")
+                If p1 > 1 And InStr(s2, "kerr") > 0 And Left(s2, 2) <> "//" Then
+                    nm = Trim(Left(s2, p1 - 1))
+                    p2 = InStr(p1 + 2, s2, ";")
+                    If p2 > 0 And L1_Simple(nm) Then
+                        s2 = Trim(Mid(s2, p1 + 2, p2 - p1 - 2))
+                        If Len(s2) > 0 And InStr(s2, "'") = 0 And InStr(s2, Chr(34)) = 0 Then
+                            If Not PD.Exists(nm) Then PD.Add nm, s2
+                        End If
+                    End If
+                End If
+            End If
+            ' v4 С1б-9: рёбра FR_C -> словарь пар N|S (для Т-2 и С0-5)
+            s2 = Trim(ln)
+            If Left(s2, 6) = "FR_C(" And Right(s2, 2) = ");" Then
+                p1 = InStr(s2, "("): p2 = InStr(p1, s2, ",")
+                If p2 > p1 Then
+                    nm = Trim(Mid(s2, p1 + 1, p2 - p1 - 1))
+                    p1 = InStr(p2 + 1, s2, ",")
+                    If p1 > 0 Then
+                        p2 = InStr(p1 + 1, s2, ",")
+                        If p2 > p1 Then
+                            nm = nm & "|" & Trim(Mid(s2, p1 + 1, p2 - p1 - 1))
+                            If Not EdgePairs.Exists(nm) Then EdgePairs.Add nm, 1
+                        End If
+                    End If
+                End If
+            End If
+            ' v4 F12: Tprev-имена: из XX0[11]-строки (ближайшее Tc*-имя в окне 8)
+            If InStr(Trim(ln), "aa2:=(0.5*aa2+") > 0 Then
+                On Error Resume Next
+                Err.Clear
+                Set re = CreateObject("VBScript.RegExp")
+                re.Pattern = "(Tc[A-Za-z0-9_]*)"
+                Dim tmptc As String
+                If Not re Is Nothing Then
+                    If re.Test(buf8) Then
+                        tmptc = re.Execute(buf8)(0).SubMatches(0)
+                        If Not Tprev.Exists(tmptc) Then Tprev.Add tmptc, 1
+                    End If
+                End If
+                On Error GoTo 0
+                If Err.Number <> 0 Then L1_Log "Tc-поиск ERROR err=" & CStr(Err.Number) & " buf8=" & Left(buf8, 80)   ' LH3 v19 Ф30
+                Err.Clear
+                Set re = Nothing
+            End If
+            buf8 = buf8 & "|" & Trim(ln)
+            If Len(buf8) > 600 Then buf8 = Mid(buf8, InStr(Mid(buf8, 2), "|") + 1)
+        Loop
+        Close #f1
+    Next fi
+    csh1 = csh
+
+    If chi = 0 Then
+        MsgBox "LH3: блоки 'Давление и расход' не найдены - это сборка 19.785?", vbExclamation, "LH3 v4"
+        On Error Resume Next: Unload ufProgress: On Error GoTo 0   ' LH3 v4: форма не должна висеть
+        Exit Sub
+    End If
+    If SZ = 0 Then SZ = chi + 1
+    Debug.Print "LH3 v5: проход 1 готов: узлов chi=" & CStr(chi) & ", SZ=" & CStr(SZ) & ", файлов=" & CStr(nFiles) & ", рёбер FR_C=" & CStr(EdgePairs.Count) & ", Tprev=" & CStr(Tprev.Count)
+    On Error Resume Next
+    dSB = Application.DisplayStatusBar
+    Application.DisplayStatusBar = True   ' строка состояния может быть скрыта - прогресс не виден без этого
+    On Error GoTo 0
+
+    ' --- проход 2: конвертация каждого файла (массив строк: нужен lookahead) ---
+    Dim lines() As String, nLines As Long, ix As Long, kx As Long
+    Dim t2st As Long, t2frcline As String, t2dpline As String, t2N As Long, t2S As Long, t2Pown As String
+    Dim t3st As Long, t3line As String
+    Dim a6st As Long, a6line As String
+    Dim f12st As Long, f12line As String
+    Dim b12st As Long, b12line As String
+    Dim b11st As Long
+    Dim spActive As Boolean, spTxt As String, spL1 As Long
+    Dim curLoopO As Boolean, curSpFrom As Long, curSpTo As Boolean
+    Dim a11done As Boolean
+    Dim b2done As Boolean, kfffdone As Boolean
+    Dim nT2 As Long, nT3 As Long, nA6 As Long, nF12 As Long, nF12m As Long
+    Dim nB14 As Long, nB11 As Long, nB12 As Long, nB5 As Long, nA9 As Long, nPH As Long
+    Dim nF11 As Long, nC24 As Long, nA11 As Long, nPSC As Long, nOIM As Long
+    Dim nNORM As Long, nEGFIX As Long, nROI As Long, nSHCW As Long, nSHCN As Long
+    Dim nNOSWAP As Long, nROSMO As Long, nSTOR4 As Long, nFREPS As Long, nB15 As Long
+    Dim nB15b As Long, nB8M As Long, nB2P As Long, nKFP As Long, nPW As Long, nTST As Long, nSKL As Long, nCI As Long
+    Dim curTubeP As String, curTubeN As String, prevS As String, inLoop As Boolean
+    curTubeP = "": curTubeN = "": prevS = "": inLoop = False
+    Dim nEdges As Long
+    Dim curLoopLvl As Long, oiProc As Boolean
+    Dim tpv As Variant, tprevList As String
+    For Each tpv In Tprev.keys
+        tprevList = tprevList & IIf(Len(tprevList) > 0, "|", "") & tpv
+    Next tpv
+    nEdges = EdgePairs.Count
+
+    For fi = 1 To nFiles
+        fn = fileList(fi)
+        If fn Like "*_LH3.txt" Then GoTo NextFile
+        outn = Left(fn, Len(fn) - 4) & "_LH3.txt"
+        noTail = (fn Like "*_0i.txt") Or (fn Like "*_000.txt")
+        curN = 0: hDone = False: dDone = False: dd = 0: ddA = 0: totC = 0: dXX0 = False: dZZ0 = False: dISTO = False
+        g48 = 0: g48lvl = 0: Fall = False: hold = ""
+        t2st = 0: t3st = 0: a6st = 0: f12st = 0: b12st = 0: b11st = 0
+        spActive = False: spTxt = "": spL1 = 0
+        curLoopO = False: curSpFrom = 0: curSpTo = False: a11done = False
+        b2done = False: kfffdone = False
+        ' --- читать весь файл в массив (для lookahead) ---
+        nLines = 0: ReDim lines(1 To 200000)
+        f1 = FreeFile: Open pth & fn For Input As #f1
+        Do While Not EOF(f1)
+            Line Input #f1, ln
+            nLines = nLines + 1
+            If nLines > UBound(lines) Then ReDim Preserve lines(1 To UBound(lines) + 200000)
+            lines(nLines) = ln
+        Loop
+        Close #f1
+        PrPro 10 + (fi - 1) / nFiles * 85, "Конверсия: " & fn
+    Debug.Print "LH3 v4: конверсия " & fn & " (" & CStr(nLines) & " строк) -> " & outn: L1_Log "ФАЙЛ " & fn & " строк " & CStr(nLines)
+        t0 = Timer: nPrn = 0: ixPrev = 0: nStuck = 0: dSB = True
+        f2 = FreeFile: Open pth & outn For Output As #f2
+        ix = 1
+        Do While ix <= nLines
+            If Seek(f2) > 314572800 Then
+                Debug.Print "!!! ОХРАНА: выход превысил 300 МБ при вход-строке " & CStr(ix) & "/" & CStr(nLines)
+                Application.StatusBar = False: Application.DisplayStatusBar = dSB: On Error Resume Next: Unload ufProgress: On Error GoTo 0
+                MsgBox "LH3 v4 ОХРАНА: выход превысил 300 МБ." & vbCrLf & "Строка входа: " & CStr(ix) & " из " & CStr(nLines) & vbCrLf & "Размер выхода: " & Format(Seek(f2) / 1048576, "0.0") & " МБ" & vbCrLf & "Файл: " & outn, vbCritical, "LH3 v4 охрана"
+                Exit Do
+            End If
+            If ix = ixPrev And nStuck > 2 Then
+                Debug.Print "!!! СТОП: ix не изменился трижды на строке: [" & Left(s, 90) & "]"
+                Application.StatusBar = False: Application.DisplayStatusBar = dSB: On Error Resume Next: Unload ufProgress: On Error GoTo 0
+                L1_Log "СТОП ix=" & CStr(ix) & " строка: " & Left(s, 120)
+                MsgBox "LH3 v4 СТОП: строка не продвинулась трижды." & vbCrLf & "Строка входа (" & CStr(ix) & "): " & Left(s, 90) & vbCrLf & "Файл: " & fn, vbCritical, "LH3 v4 стоп"
+                Exit Do
+            End If
+            ixPrev = ix
+            If (ix Mod 10) = 1 Then
+                mb = Seek(f2) / 1048576
+                Application.StatusBar = "LH3 v4: " & fn & " -> " & outn & ": строка " & CStr(ix) & " / " & CStr(nLines) & " (" & Format(mb, "0.0") & " МБ)"
+                Debug.Print "    ...строка " & CStr(ix) & "/" & CStr(nLines) & ", выход " & Format(mb, "0.0") & " МБ"
+                DoEvents
+            End If
+            If (ix Mod 500) = 1 Then
+                PrPro 10 + (fi - 1 + ix / nLines) / nFiles * 85, "Конверсия: " & fn & " (" & CStr(ix) & "/" & CStr(nLines) & ")"
+            End If
+            If (ix Mod 10) = 0 And ix <= 120 Then L1_Log "OUT ix=" & CStr(ix) & ": [" & Left(pl, 70) & "]"
+            If (ix Mod 5000) = 1 Then L1_Log "строка " & CStr(ix) & "/" & CStr(nLines) & ", выход " & Format(Seek(f2) / 1048576, "0.0") & " МБ"
+            prevS = s: ln = lines(ix): s = Trim(ln): pl = ln   ' LH3 v4 FIX: pl - исходная строка
+            ' LH3 v16 (Ф19-б): дубли деклараций - перехват В НАЧАЛЕ итерации (на любом пути печати);
+            ' флаги ставятся ТОЛЬКО в момент печати (вставка Decls4 / путь Out4) - иначе Out4-страж
+            ' гасил первую декларацию ZZ0/ISTO_p
+            If (Left(s, 4) = "XX0:") Or (Left(s, 4) = "ZZ0:") Or (Left(s, 7) = "ISTO_p:") Then
+                If (Left(s, 4) = "XX0:" And dXX0) Or (Left(s, 4) = "ZZ0:" And dZZ0) Or (Left(s, 7) = "ISTO_p:" And dISTO) Then
+                    L1_Log "DUB-SKIP @" & CStr(ix) & ": " & Left(s, 100)
+                    nDub = nDub + 1
+                    ix = ix + 1: GoTo IXDONE
+                End If
+            End If
+            If L4_M(s, "^aa2:=([a-zA-Z_0-9]+)") And (Not L4_M(s, "^aa2:=aa2")) Then
+                Dim tn As String: tn = L4_SM(s, "^aa2:=([a-zA-Z_0-9]+)", 0)
+                If tn <> "aa2" Then curTubeP = tn
+            End If
+            If oiProc And s = "begin" Then
+                Print #f2, s
+                Print #f2, "  LH3_cnt_OI:=LH3_cnt_OI+1;  kerr:=-990; // LH3 v4 С0-1"
+                oiProc = False: ix = ix + 1
+            ElseIf SW_RP = 1 And LCase(s) = "implementation" Then
+                Print #f2, ln: Print #f2, "{$R+} // LH3 v5 С0-5": ix = ix + 1
+            ElseIf Len(s) = 0 Then
+                Print #f2, ln: ix = ix + 1
+            ElseIf noTail Then
+                Print #f2, ln: ix = ix + 1
+            Else
+                ' v4 A11: сбор span (от V_r[1]:=1 до XX0[11]: внутри ОИ-петли)
+                If curLoopO And Not spActive And s = "V_r[1]:=1;" Then
+                    spActive = True: spTxt = ""
+                ElseIf curLoopO And spActive And Not L4_M(s, "^XX0\[11\]:=") Then
+                    spTxt = spTxt & "|" & s
+                End If
+                ddA = dd + L1_Delta(ln)
+                ' A2-гейт (v3): ожидание begin после ttyr=48
+                If g48 = 1 Then
+                    If Len(s) = 0 Or Left(s, 2) = "//" Then
+                        Print #f2, ln: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    ElseIf s = "begin" Then
+                        g48 = 2: g48lvl = ddA: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    Else
+                        Print #f2, hold: hold = "": g48 = 0
+                        Print #f2, ln: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    End If
+                ElseIf g48 = 2 And ddA = g48lvl - 1 And Left(s, 3) = "end" Then
+                    g48 = 0: nA2 = nA2 + 1: dd = ddA: ix = ix + 1
+                Else
+                    ' === v4: Power-фиксы (С0-2/С1а-1/С1а-2) ===
+                    If InStr(pl, "Power(") > 0 Then
+                        pl = L1_FixPowers(pl)
+                        If InStr(pl, "Sqrt(") > 0 Or InStr(pl, ")*(") > 0 Or InStr(pl, "Exp(") > 0 Then nPW = nPW + 1
+                    End If
+                    ' === v4 Т-3: гашение U_ri при aa3<=0 ===
+                    If L4_M(s, "^U_ri\[(\d+),(\d+)\]:=U_ri\[\d+,\d+\]/aa3;(.*)$") Then
+                        nm = "U_ri[" & L4_SM(s, "^U_ri\[(\d+),(\d+)\]", 0) & "," & L4_SM(s, "^U_ri\[\d+,(\d+)\]", 0) & "]"
+                        rest = L4_SM(s, "^U_ri\[\d+,\d+\]:=U_ri\[\d+,\d+\]/aa3;(.*)$", 0)
+                        If rest Like "  kerr:= *" Then rest = Mid(rest, InStr(rest, "kerr:"))
+                        If InStr(rest, "//") > 0 Then rest = Trim(Left(rest, InStr(rest, "//") - 1))
+                        Print #f2, "if (aa3<=0) then " & nm & ":=0 else if (" & nm & ">0.000025) then " & s & " " & rest & " // LH3 v4 Т-3"
+                        nT3 = nT3 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    ElseIf L4_M(s, "^XX0\[14\]:=XX0\[12\]/\(XX0\[13\]\+e27\);") Then
+                        ' === v4 A6: кламп подушки ===
+                        Print #f2, "if (XX0[13]<0.005*10*(e27+10*ISTO_v[" & curN & "])) then"
+                        Print #f2, "XX0[13]:=0.005*10*(e27+10*ISTO_v[" & curN & "]); LH3_cnt_clamp:=LH3_cnt_clamp+1;  kerr:= -961; // LH3 v4 A6: кламп Vmin"
+                        Print #f2, "XX0[14]:=XX0[12]/XX0[13]; LH3_cnt_clamp:=LH3_cnt_clamp+1;  kerr:= -962; // LH3 v4 A6: без взрыва"
+                        nA6 = nA6 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    ElseIf L4_M(s, "^aa2:=\(0\.5\*aa2\+\(aa2\+1\)\*XX0\[14\]\*XX0\[15\]-1\)/1\.5;") Then
+                        ' === v4 F12: dT/T ===
+                        nm = ""
+                        For kx = ix - 1 To IIf(ix - 8 > 1, ix - 8, 1) Step -1
+                            If L4_M(Trim(lines(kx)), "Tc[A-Za-z0-9_]*") Then nm = L4_SM(Trim(lines(kx)), "(Tc[A-Za-z0-9_]*)", 0): Exit For
+                        Next kx
+                        If Len(nm) > 0 Then
+                            Print #f2, "aa2:=(0.5*aa2+((aa2+1)*XX0[14]*XX0[15]*(273.15+" & nm & ")/(273.15+LH3_Tprev_" & Mid(nm, 3) & ")-1))/1.5;  kerr:= -963; // LH3 v4 F12: dT/T"
+                            nF12 = nF12 + 1
+                        Else
+                            Print #f2, pl
+                            nF12m = nF12m + 1
+                        End If
+                        dd = ddA: ix = ix + 1
+                    ElseIf L4_M(s, "^XX0\[3\]:=1-(\w+);") Then
+                        ' === v4 B14: клампы долей ===
+                        Print #f2, s
+                        Print #f2, "if (XX0[3]>1) then XX0[3]:=1; LH3_cnt_clamp:=LH3_cnt_clamp+1;  kerr:= -964; // LH3 v4 B14"
+                        Print #f2, "if (XX0[3]<0.01) then XX0[3]:=0.01; LH3_cnt_clamp:=LH3_cnt_clamp+1;  kerr:= -964; // LH3 v4 B14"
+                        nB14 = nB14 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    ElseIf Left(s, 8) = "dL:=0.55" And L4_M(s, "^dL:=0\.55;") Then
+                        ' === v4 B11: нижний кламп ===
+                                        rest = Trim(Mid(s, InStr(s, ";") + 1))
+                                        If SW_SKL = 1 Then
+                                            Print #f2, "dL:=0.55*SK_L; " & rest & " // LH3 v7 С1б-4 B10: кламп dL с SK_L"
+                                        Else
+                                            Print #f2, pl
+                                        End If
+                        Print #f2, "if (dL<-0.55) then"
+                                        If SW_SKL = 1 Then
+                                            Print #f2, "dL:=-0.55*SK_L;  kerr:= -965; // LH3 v7 С1б-4 B11: нижний кламп с SK_L"
+                                        Else
+                                            Print #f2, "dL:=-0.55;  kerr:= -965; // LH3 v4 B11: нижний кламп"
+                                        End If
+                                        nB11 = nB11 + 1: nSKL = nSKL + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v7 FIX
+                    ElseIf s = "if (dL=3) then" Then
+                        ' === v4 B12: строка if не печатается (гейт переносится) ===
+                        dd = ddA: ix = ix + 1
+                    ElseIf L4_M(s, "^(\w+):=\1\+0\.01\*XX0\[8\];") Then
+                        ' === v4 B12: гейт клапана роста ===
+                        nm = L4_SM(s, "^(\w+):=", 0)
+                        rest = L4_SM(s, "0\.01\*XX0\[8\];(.*)$", 0)
+                        If InStr(rest, "//") > 0 Then rest = Trim(Left(rest, InStr(rest, "//") - 1))
+                        Print #f2, "if (dL=3) and ((LIM_P_max<=0) or (" & nm & "+0.01*XX0[8]<LIM_P_max)) then"
+                        Print #f2, nm & ":=" & nm & "+0.01*XX0[8]; " & rest & " // LH3 v4 B12: гейт клапана роста"
+                        nB12 = nB12 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    ElseIf L4_M(s, "^W_out:=W_out\*(\w+)/(S_out\+e27);") Then
+                        ' === v4 B5: третья фаза в лимитерах ===
+                        Print #f2, s
+                        Print #f2, "G_out:=G_out*" & L4_SM(s, "^W_out:=W_out\*(\w+)", 0) & "/(S_out+e27);  kerr:= -966; // LH3 v4 B5: третья фаза"
+                        nB5 = nB5 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    ElseIf L4_M(s, "^W_in:=W_in\*(\w+)/(S_in\+e27);") Then
+                        Print #f2, s
+                        Print #f2, "G_in:=G_in*" & L4_SM(s, "^W_in:=W_in\*(\w+)", 0) & "/(S_in+e27);  kerr:= -966; // LH3 v4 B5: третья фаза"
+                        nB5 = nB5 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    ElseIf L4_M(s, "^L_out:=L_out\+W_out-\(3600\*MAIN_c\*[^\)]+\+W_in\);") Then
+                        ' === v4 A9: перекладка вода->УВ убрана ===
+                        Print #f2, "// LH3 v4 A9: перекладка вода->УВ убрана"
+                        nA9 = nA9 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    ElseIf L4_M(s, "^G_out:=G_out\+L_out-\(3600\*MAIN_c\*[^\)]+\+L_in\);") Then
+                        Print #f2, "// LH3 v4 A9: перекладка УВ->газ убрана"
+                        nA9 = nA9 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    ElseIf L4_M(s, "^L_out:=L_out\+G_out-\(3600\*MAIN_c\*[^\)]+\+G_in\);") Then
+                        Print #f2, "// LH3 v4 A9: перекладка газ->УВ убрана"
+                        nA9 = nA9 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                                    ElseIf L4_M(s, "^W_out:=3600\*MAIN_c\*[^\)]+\+W_in;") Then
+                                        ' === v6 С1б-2: жёсткий кап W -> плавный масштаб ZZ0[93] ===
+                                        rest = Trim(Mid(s, InStr(s, ";") + 1))
+                                        Print #f2, "W_out:=W_out*ZZ0[93]; " & rest & " // LH3 v6 С1б-2: по-фазный масштаб вместо жёсткого капа"
+                                        nPH = nPH + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v6 FIX
+                                    ElseIf L4_M(s, "^L_out:=3600\*MAIN_c\*[^\)]+\+L_in;") Then
+                                        ' === v6 С1б-2: жёсткий кап L -> плавный масштаб ZZ0[94] ===
+                                        rest = Trim(Mid(s, InStr(s, ";") + 1))
+                                        Print #f2, "L_out:=L_out*ZZ0[94]; " & rest & " // LH3 v6 С1б-2: по-фазный масштаб вместо жёсткого капа"
+                                        nPH = nPH + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v6 FIX
+                                    ElseIf L4_M(s, "^G_out:=3600\*MAIN_c\*[^\)]+\+G_in;") Then
+                                        ' === v6 С1б-2: жёсткий кап G -> плавный масштаб ZZ0[95] ===
+                                        rest = Trim(Mid(s, InStr(s, ";") + 1))
+                                        Print #f2, "G_out:=G_out*ZZ0[95]; " & rest & " // LH3 v6 С1б-2: по-фазный масштаб вместо жёсткого капа"
+                                        nPH = nPH + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v6 FIX
+                                    ElseIf SW_TST = 1 And L4_M(s, "^OI\(U") Then
+                                        ' === v7 С1а-4: tst-гейт на ОИ куба (испарение/конденсация накопленного) ===
+                                        Dim hasT As Boolean, kx2 As Long
+                                        hasT = False
+                                        For kx2 = ix - 1 To IIf(ix - 6 > 1, ix - 6, 1) Step -1
+                                            If InStr(Trim(lines(kx2)), "tst") > 0 Then hasT = True: Exit For
+                                        Next kx2
+                                        If hasT Then
+                                            Print #f2, pl
+                                        Else
+                                            Dim args() As String, tnm As String, oiargs As String
+                                            oiargs = Mid(s, 4, InStr(s, ");") - 4)
+                                            args = Split(oiargs, ",")
+                                            If UBound(args) >= 6 Then
+                                            tnm = Trim(args(6))
+                                            rest = Trim(Mid(s, InStr(s, ";") + 1))
+                                            Print #f2, "tst:=0; // LH3 v7 С1а-4: tst-гейт на ОИ куба"
+                                            Print #f2, "if (" & tnm & ">800) then tst:=1; kerr:= -972; // LH3 v7 С1а-4"
+                                            Print #f2, "if (" & tnm & "<-120) then tst:=1; kerr:= -972; // LH3 v7 С1а-4"
+                                            Print #f2, "if (tst=0) then OI(" & oiargs & "); " & rest & " // LH3 v7 С1а-4: tst-гейт на ОИ куба"
+                                            nTST = nTST + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v7 FIX
+                                            Else
+                                                Print #f2, pl   ' LH3 v11: недостаточно аргументов ОИ - строка как есть
+                                            End If
+                                        End If
+                    ElseIf L4_M(s, "^aa3:=\(e27\+U_ri\[") And prevS Like "*aa1:=1;*" Then
+                        ' === v10 С4-1/С4-4: ёмкость узла + физический якобиан (замена суммы U) ===
+                        Dim mN As String
+                        mN = L4_SM(s, "^aa3:=\(e27\+U_ri\[(\d+),", 0)
+                        If Len(mN) > 0 Then curTubeN = mN
+                        If Len(curTubeP) > 0 Then
+                            Print #f2, "LH3_Ci:=0;  kerr:= -959; // LH3 v10 С4-4: ёмкость узла"
+                            Print #f2, "if (eG>0.99) then LH3_Ci:=mG_r[" & curTubeN & "]/(" & curTubeP & "+1) else if (eG<0.01) then LH3_Ci:=mL_r[" & curTubeN & "]/21700 else LH3_Ci:=mG_r[" & curTubeN & "]/(" & curTubeP & "+1)+mL_r[" & curTubeN & "]/21700;  kerr:= -959; // LH3 v10 С4-4"
+                        Else
+                            Print #f2, "LH3_Ci:=0;  kerr:= -959; // LH3 v10 С4-4: имя узла не найдено - без ёмкости"
+                        End If
+                        Print #f2, "aa3:=e27;  kerr:= -958; // LH3 v10 С4-1: якобиан физический (члены добавляются в петле)"
+                        nCI = nCI + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v10 FIX
+                    ElseIf L4_M(s, "^aa3:=aa3\*XX0\[55\]/10;") Then
+                        nCI = nCI + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v10 FIX: ручка XX0[55]/10 удалена
+                    ElseIf L4_M(s, "^aa3:=aa3\*1\.015\*XX0\[53\]?;") Then
+                        nCI = nCI + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v13 FIX: тело вернуто в ветку R3 (в v13 уехало в ветку 1.33 - структурная ошибка вставки)
+                    ElseIf L4_M(s, "^aa3:=aa3\*1\.33\*XX0\[53\]?;") Then
+                        inLoop = False   ' LH3 v13: ОИ-петля (1.33) - не ТУБ: члены якобиана не вставлять
+                        Print #f2, pl   ' LH3 v13 FIX: строка 1.33 сохраняется (ручка ОИ-петли)
+                    ElseIf inLoop And Left(Trim(s), 5) = "dP_r[" Then   ' LH3 v20 Ф31-а: без RegExp
+                        ' === v10 С4-1: физический член якобиана после dP_r[k] (v16 Ф21: корр - из Sqrt-формы dP_r, жадная группа) ===
+                        Print #f2, pl
+                        If Len(curTubeN) > 0 Then
+                            Dim c21 As String, d21 As String, k21 As String
+                            Dim p21 As String: p21 = Trim(pl)   ' LH3 v17 Ф21-б: Sqrt-форма (pl после FixPowers)
+                            Dim pC As Long, pQ As Long, pA As Long, pE As Long   ' LH3 v20 Ф31: чистый VBA вместо RegExp
+                            pC = InStr(p21, "]:=")
+                            pQ = InStrRev(p21, "*Sqrt(Abs(")
+                            If pC > 0 And pQ > pC + 3 Then
+                                c21 = Mid(p21, pC + 3, pQ - pC - 3)
+                                pA = InStr(pQ, p21, "Sqrt(Abs(") + 9
+                                pE = InStr(pA, p21, "))")
+                                If pE > pA Then d21 = Mid(p21, pA, pE - pA)
+                            End If
+                            If Len(c21) = 0 And InStr(p21, ":=Sqrt(Abs(") > 0 Then c21 = "1"   ' гард: строка без корректора
+                            If Len(c21) > 0 Then
+                                pC = InStr(p21, "dP_r[")
+                                If pC > 0 Then k21 = Mid(p21, pC + 5, InStr(pC, p21, "]") - pC - 5)
+                            End If
+                            If Len(c21) > 0 And Len(d21) > 0 Then
+                                Print #f2, "aa3:=aa3+U_ri[" & curTubeN & "," & k21 & "]*(" & c21 & ")*0.5/(Sqrt(Abs(" & d21 & "))+0.01);  kerr:= -957; // LH3 v4 С4-1"
+                                nCImem = nCImem + 1
+                            Else
+                                ' LH3 v17 Ф21-б: строка уже напечатана выше - повтор НЕ печатаем
+                                nCIfail = nCIfail + 1
+                            End If
+                        End If
+                        dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v10 FIX
+ElseIf L4_M(s, "^aa1:=K_svod\*\(S_out-S_in\)/K_fff;") Then
+                        ' === v4 F11: невязка без K_svod ===
+                        rest = L4_SM(s, "K_fff;(.*)$", 0)
+                        If InStr(rest, "//") > 0 Then rest = Trim(Left(rest, InStr(rest, "//") - 1))
+                        Print #f2, "aa1:=(S_out-S_in); " & rest & " // LH3 v4 F11: невязка без K_svod"
+                        nF11 = nF11 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    ElseIf s = "if (Abs(aa1)>1.2*Abs(aa004)) then" Then
+                        ' === v4 F11: дампинг шага ===
+                        Print #f2, "if (Abs(aa1)>1.05*Abs(aa004)) then"
+                        Print #f2, "begin W_damp:=W_damp*0.5;  kerr:= -967; end"
+                        Print #f2, "else begin if (W_damp<1) then begin if (W_damp*2>1) then W_damp:=1 else W_damp:=W_damp*2;  kerr:= -968; end; end; // LH3 v4 F11"
+                        nF11 = nF11 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    ElseIf L4_M(s, "^aa3:=aa3\*1\.82;") Then
+                        Print #f2, "// LH3 v4 F11: эвристика 1.82 заменена W_damp-механикой"
+                        nF11 = nF11 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    ElseIf L4_M(s, "^aa2:=aa2-0\.52\*aa1/aa3;") Then
+                        rest = L4_SM(s, "aa3;(.*)$", 0)
+                        If InStr(rest, "//") > 0 Then rest = Trim(Left(rest, InStr(rest, "//") - 1))
+                        If Len(curTubeP) > 0 Then
+                            Print #f2, "LH3_R:=aa1+LH3_Ci*(aa2-" & curTubeP & ")*3600*MAIN_c/SK_L;  kerr:= -956; // LH3 v10 С4-4"
+                            Print #f2, "LH3_J:=aa3+LH3_Ci*3600*MAIN_c/SK_L;  kerr:= -956; // LH3 v10 С4-4"
+                            Print #f2, "aa2:=aa2-W_damp*LH3_R/(LH3_J+e27); " & rest & " // LH3 v10 С4-4: шаг с ёмкостью"
+                        Else
+                            Print #f2, "aa2:=aa2-W_damp*aa1/(aa3+e27); " & rest & " // LH3 v4 F11: шаг по якобиану (имя узла не найдено)"
+                        End If
+                        inLoop = False
+                        nF11 = nF11 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    ElseIf s = "if (Abs(aa1)<0.0005) then" Then
+                        Print #f2, "if (Abs(aa1)<1e-4*(Abs(S_in)+Abs(S_out)+0.1)) then  // LH3 v4 F11: относительный критерий"
+                        nF11 = nF11 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    ElseIf L4_M(s, "^while ttyr<\s*49 do begin") Then
+                        inLoop = True
+                        Print #f2, "W_damp:=1;  kerr:= -969; // LH3 v4 F11: сброс дампинга"
+                        Print #f2, pl
+                        curLoopO = True: curLoopLvl = dd: spActive = False: spTxt = ""
+                        dd = ddA: ix = ix + 1
+                    ElseIf L4_M(s, "^tty_1:= 0;") Then
+                        ' === v4 С0-1: счётчик 24К ===
+                        Print #f2, pl
+                        Print #f2, "LH3_cnt_24K:=LH3_cnt_24K+1;  kerr:= -970; // LH3 v4 С0-1"
+                        nC24 = nC24 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    Else
+                        ' === v4 Т-2/Т-1: FR_C-тройка (lookahead 2 строки) ===
+                        If L4_M(s, "^FR_C\((\d+),(\d+),(\d+),([^,]+),([^,]+),([^;]+)\);") And SW_T2 And ix + 2 <= nLines Then
+                            t2N = CLng(L4_SM(s, "^FR_C\((\d+)", 0))
+                            t2S = CLng(L4_SM(s, "^FR_C\(\d+,(\d+)", 0))
+                            t2Pown = L4_SM(s, "^FR_C\(\d+,\d+,\d+,([^,]+),([^,]+),([^,)]+)", 1)   ' LH3 v16 Ф23: имя узла - аргумент 5 (в v15 брался аргумент 4 - жидкостный L_имя)
+                            Dim t2Ps As String, t2corr As String
+                            t2Ps = L4_SM(s, "^FR_C\(\d+,\d+,\d+,([^,]+),([^,]+),([^,)]+)", 2)   ' LH3 v16 Ф23: сосед - аргумент 6
+                            If Left(t2Pown, 2) = "L_" Then t2Pown = Mid(t2Pown, 3)   ' LH3 v16 Ф23: страховка
+                            If Left(t2Ps, 2) = "L_" Then t2Ps = Mid(t2Ps, 3)
+                            If Right(t2Ps, 1) = ")" Then t2Ps = Left(t2Ps, Len(t2Ps) - 1)   ' LH3 v17 Ф26: страховка
+                            t2corr = "(1-p" & t2Pown & "*(1-p" & t2Ps & "))"
+                            t2frcline = s
+                            t2dpline = Trim(lines(ix + 1))
+                            If L4_M(t2dpline, "^(Fc_r\[(\d+),(\d+)\]):=\(6\*Fc_r\[\d+,\d+\]-V_ri\[\d+,\d+\]\*aa3\)/7;") And _
+                               L4_M(Trim(lines(ix + 2)), "^(Fc\w+):=\(\1\*0\.08\+aa3\)/1\.08;") Then
+                                Dim rr As String, rrr As String
+                                rr = L4_SM(t2dpline, "^(Fc_r\[(\d+),(\d+)\])", 0)
+                                rrr = L4_SM(Trim(lines(ix + 2)), "^(Fc\w+):=", 0)
+                                Print #f2, "if (GTc" & t2Pown & "*Fm" & t2Pown & "<100*e27) and (GTc" & t2Pown & "*Fm" & t2Pown & ">100*e27) then"
+                                Print #f2, "begin"
+                                If EdgePairs.Exists(CStr(t2S) & "|" & CStr(t2N)) Then
+                                    Print #f2, "  // LH3 v4 Т-2: я тупик, сосед жив - копия расхода (штуцер СОСЕДА #" & CStr(t2S) & ")"
+                                    Print #f2, "  " & rr & ":=-Fc_r[" & CStr(t2S) & "," & CStr(t2N) & "];  kerr:= -971;"
+                                    Print #f2, "  " & rrr & ":=(" & rrr & "*0.08-Fc_r[" & CStr(t2S) & "," & CStr(t2N) & "])/1.08;  kerr:= -972;"
+                                Else
+                                    Print #f2, "  // LH3 v4 Т-2: я мёртв, сосед - граница - явный ноль"
+                                    Print #f2, "  " & rr & ":=0;  kerr:= -971;"
+                                    Print #f2, "  " & rrr & ":=(" & rrr & "*0.08)/1.08;  kerr:= -972;"
+                                End If
+                                Print #f2, "end else if (GTc" & t2Pown & "*Fm" & t2Pown & "<100*e27) and (GTc" & t2Pown & "*Fm" & t2Pown & "<100*e27) then"
+                                Print #f2, "begin"
+                                Print #f2, "  " & rr & ":=0;  kerr:= -973;"
+                                Print #f2, "  " & rrr & ":=(" & rrr & "*0.08)/1.08;  kerr:= -974;"
+                                Print #f2, "end else begin"
+                                Print #f2, t2frcline
+                                Print #f2, "  " & Replace(t2dpline, "-V_ri[", "-" & t2corr & "*V_ri[")
+                                Print #f2, "  " & Replace(Trim(lines(ix + 2)), "+aa3)/1.08;", "+aa3*" & t2corr & ")/1.08;")
+                                Print #f2, "end;  kerr:= -975; // LH3 v4 Т-2/Т-1: пара равнозначных расходов"
+                                nT2 = nT2 + 1: dd = ddA: ix = ix + 3: GoTo IXDONE   ' LH3 v4 FIX
+                            Else
+                                GoTo ElseOut
+                            End If
+                        ElseIf SW_B8 And InStr(pl, "*298/(273.15") > 0 Then
+                            ' === v4 B8: 298 -> 273.15 ===
+                            pl = Replace(pl, "*298/(273.15", "*273.15/(273.15"): nB8M = nB8M + 1
+                            GoTo ElseOut
+                        ElseIf SW_B8 And InStr(pl, "/30.14+") > 0 Then
+                            pl = Replace(Replace(Replace(Replace(Replace(pl, "/30.14+", "/M[1]+"), "/356.02+", "/M[2]+"), "/107.51+", "/M[3]+"), "/198.32+", "/M[4]+"), "/28.58+", "/M[5]+")
+                            pl = Replace(pl, "/18+0.1*e27", "/M[6]+0.1*e27"): nB8M = nB8M + 1
+                            GoTo ElseOut
+                        ElseIf SW_B15 And L4_M(s, "^(KU2_r\[\d+,tty_1,tty_2\]:=KU2_r\[\d+,tty_1,tty_2\])/(XX0\[7\]);") Then
+                            ' === v4 B15: eps в XX0[7]-делениях ===
+                            pl = Replace(pl, "/(XX0[7]);", "/(XX0[7]+e27);"): nB15 = nB15 + 1
+                            GoTo ElseOut
+                        ElseIf SW_B15 And Left(s, 20) = "XX0[1]:=XX0[1]/XX0[7];" Then
+                            pl = Replace(pl, "/XX0[7];", "/(XX0[7]+e27);"): nB15b = nB15b + 1
+                            GoTo ElseOut
+                        ElseIf SW_B2P And (Not b2done) And Left(s, 7) = "Stor_m(" Then
+                            ' === v4 С0-4: печать B2 ===
+                            Print #f2, pl
+                            Print #f2, "if (LH3_DBG >= 1) then Log(' LH3 B2: XX0[12]='+cstrf(XX0[12],3)+' (V_ss/Vg_s - локалы Stor_m: печать в _0, v16 Ф25)');  kerr:= -992; // LH3 v16 Ф25"
+                            b2done = True: nB2P = nB2P + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                        ElseIf SW_KFP And (Not kfffdone) And Left(s, 18) = "S_out:=K_fff*(U_ri[" Then
+                            ' === v4 С0-8: замер K_fff ===
+                            Print #f2, pl
+                            Print #f2, "if (LH3_DBG >= 1) and (LH3_cnt_24K=0) and (LH3_cnt_OI=0) then begin Log(' LH3 K_fff: S_in='+cstrf(S_in,3)+' S_out='+cstrf(S_out,3)); kerr:= -993; end; // LH3 v4 С3-1: замер"
+                            kfffdone = True: nKFP = nKFP + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                        Else
+ElseOut:
+                            ' === v3: A1 (окно pmax/pmin) ===
+                            If InStr(pl, "<pmin+2*e27") > 0 Then
+                                pl = Replace(pl, "pmin+2*e27", "pmin"): nA1 = nA1 + 1
+                                Print #f2, "LH3_cnt_clamp:=LH3_cnt_clamp+1; // LH3 v5 С0-1: кламп окна pmax/pmin"
+                            End If
+                            If InStr(pl, ">pmax-2*e27") > 0 Then
+                                pl = Replace(pl, "pmax-2*e27", "pmax"): nA1 = nA1 + 1
+                                Print #f2, "LH3_cnt_clamp:=LH3_cnt_clamp+1; // LH3 v5 С0-1: кламп окна pmax/pmin"
+                            End If
+                            If Left(s, 6) = "pmax:=" And InStr(pl, "-2*e27") > 0 Then
+                                pl = Replace(pl, "-2*e27;", "+50.0;"): nA1 = nA1 + 1
+                                Print #f2, "LH3_cnt_clamp:=LH3_cnt_clamp+1; // LH3 v5 С0-1: кламп окна pmax/pmin"
+                            End If
+                            If Left(s, 6) = "pmin:=" And InStr(pl, "+2*e27") > 0 Then
+                                pl = Replace(pl, "+2*e27;", "-10.0;"): nA1 = nA1 + 1
+                                Print #f2, "LH3_cnt_clamp:=LH3_cnt_clamp+1; // LH3 v5 С0-1: кламп окна pmax/pmin"
+                            End If
+                            ' === v3: +e27 в знаменателе K_v ===
+                            If InStr(pl, "MAIN_c/(100+Abs(") > 0 And InStr(pl, "+e27") = 0 Then
+                                p3 = InStr(pl, "MAIN_c/(100+Abs(")
+                                p4 = InStr(p3, pl, ")")
+                                If p4 > p3 Then pl = Left(pl, p4 - 1) & "+e27" & Mid(pl, p4)
+                                nE27 = nE27 + 1
+                            End If
+                            ' === гейт ОИ-блока ttyr=48 (v3) ===
+                            If g48 = 0 And InStr(pl, "ttyr=48) then") > 0 Then
+                                hold = pl: g48 = 1: nA2 = nA2 + 1
+                            Else
+                                ' === номер текущего узла ===
+                                p1 = InStr(pl, "Давление и расход")
+                                If p1 > 0 Then
+                                    p2 = InStr(1, pl, "#")
+                                    If p2 > 0 And p2 < p1 Then curN = Val(Trim(Mid(pl, p2 + 1, p1 - p2 - 1)))
+                                End If
+                                ' === декларации v4: после array-строки (все юниты) ===
+                                If (Not dDone) And (Left(s, 4) = "XX0:" Or Left(s, 5) = "ZZ0:" Or Left(s, 7) = "ISTO_p:") And InStr(s, "array") > 0 Then
+                                    Print #f2, pl
+                                    If InStr(pl, "XX0: array") > 0 Then dXX0 = True
+                                    If InStr(pl, "ZZ0: array") > 0 Then dZZ0 = True
+                                    If InStr(pl, "ISTO_p: array") > 0 Then dISTO = True
+                                    Debug.Print "LH3 v4 DECL @" & CStr(ix) & ": " & Left(pl, 60)
+                                    Print #f2, L1_Decls4(SZ, tprevList, nEdges)
+                                    dDone = True
+                                    dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v16 (Ф19-в): явный шаг - класс двойной печати закрыт
+                                ' === страж входа (v3) ===
+                                ElseIf curN > 0 And InStr(s, "aa2") = 1 And InStr(pl, "INT_PRT-1") > 0 Then
+                                    nm = Mid(pl, 1, InStr(pl, "INT_PRT-1") - 1)
+                                    p2 = InStrRev(nm, "+")
+                                    If p2 > 0 Then nm = Mid(nm, 1, p2 - 1)
+                                    p2 = InStrRev(nm, "=")
+                                    If p2 > 0 Then nm = Trim(Mid(nm, p2 + 1))
+                                    Print #f2, pl
+                                    If Len(nm) > 0 And ddA > 0 Then
+                                        totB = totB + 1
+                                        If PD.Exists(nm) Then gv = PD(nm) Else gv = "100"
+                                        Print #f2, "if " & L1_Bad(nm) & " then begin"
+                                        Print #f2, "  " & L1_Rec("NaN_in[" & CStr(curN) & "]", nm, curN, 1)
+                        Print #f2, "  LH3_cnt_guard:=LH3_cnt_guard+1; // LH3 v5 С0-1"
+                                        Print #f2, "  if " & L1_Live("ISTO_p[" & CStr(curN) & "]") & " then begin"
+                                        If L1_Simple(nm) Then Print #f2, "    " & nm & ":=ISTO_p[" & CStr(curN) & "];"
+                                        Print #f2, "    aa2:=ISTO_p[" & CStr(curN) & "];"
+                                        Print #f2, "  end else begin"
+                                        If L1_Simple(nm) Then Print #f2, "    " & nm & ":=" & gv & ";"
+                                        Print #f2, "    aa2:=" & gv & ";"
+                                        Print #f2, "  end;"
+                                        Print #f2, "  kerr:= -795;"
+                                        Print #f2, "  if (LH3_DBG >= 1) and (Not LH3_frzI[" & CStr(curN) & "]) then begin"
+                                        Print #f2, "    Log(' LH3 freeze: узел #" & CStr(curN) & " - " & nm & " NaN/бред - last-good/пресет');"
+                                        Print #f2, "    LH3_frzI[" & CStr(curN) & "] := true;"
+                                        Print #f2, "  end;"
+                                        Print #f2, "end else if " & L1_RngBad(nm) & " then begin"
+                                        Print #f2, "  " & L1_Rec("NaN_in[" & CStr(curN) & "]", "диапазон: " & nm, curN, 3)
+                        Print #f2, "  LH3_cnt_guard:=LH3_cnt_guard+1; // LH3 v5 С0-1"
+                                        Print #f2, "  if " & L1_Live("ISTO_p[" & CStr(curN) & "]") & " then begin"
+                                        If L1_Simple(nm) Then Print #f2, "    " & nm & ":=ISTO_p[" & CStr(curN) & "];"
+                                        Print #f2, "    aa2:=ISTO_p[" & CStr(curN) & "];"
+                                        Print #f2, "  end else begin"
+                                        If L1_Simple(nm) Then Print #f2, "    " & nm & ":=" & gv & ";"
+                                        Print #f2, "    aa2:=" & gv & ";"
+                                        Print #f2, "  end;"
+                                        Print #f2, "  kerr:= -796;"
+                                        Print #f2, "  if (LH3_DBG >= 1) and (Not LH3_frzI[" & CStr(curN) & "]) then begin"
+                                        Print #f2, "    Log(' LH3 freeze: узел #" & CStr(curN) & " - " & nm & " вне диапазона LIM_P - last-good/пресет');"
+                                        Print #f2, "    LH3_frzI[" & CStr(curN) & "] := true;"
+                                        Print #f2, "  end;"
+                                        Print #f2, "end else LH3_frzI[" & CStr(curN) & "] := false; // Ф52: значение вернулось - сброс флага"
+                                    End If
+                                ElseIf InStr(s, "ISTO_p[") = 1 Then
+                                    ' === страж хвоста (ЗАМОРОЗКА, v3) ===
+                                    p1 = InStr(pl, "ISTO_p[") + 7
+                                    p2 = InStr(p1, pl, "]")
+                                    n = 0
+                                    If p2 > p1 Then n = Val(Trim(Mid(pl, p1, p2 - p1)))
+                                    p1 = InStr(p2, pl, "=")
+                                    nm = ""
+                                    If p1 > 0 Then
+                                        nm = Trim(Mid(pl, p1 + 1))
+                                        i = InStr(nm, ";")
+                                        If i > 0 Then nm = Left(nm, i - 1)
+                                        nm = Trim(nm)
+                                    End If
+                                    i = InStr(pl, ";")
+                                    If i > 0 Then rest = Trim(Mid(pl, i + 1)) Else rest = ""
+                                    If n > 0 And n <= SZ And Len(nm) > 0 And (Mid(nm, 1, 1) < "0" Or Mid(nm, 1, 1) > "9") Then
+                                        totH = totH + 1
+                                        If PD.Exists(nm) Then gv = PD(nm) Else gv = "100"
+                                        Print #f2, "if (Not IsNan(" & nm & ")) and (Abs(" & nm & ")<=1e300) and (Not (" & L1_RngBad(nm) & ")) then ISTO_p[" & CStr(n) & "]:=" & nm & ";"
+                                        If Len(rest) > 0 Then Print #f2, rest
+                                        Print #f2, "if " & L1_Bad(nm) & " then begin"
+                                        Print #f2, "  " & L1_Rec("NaN_t[" & CStr(n) & "]", nm, n, 2)
+                                        Print #f2, "  LH3_cnt_guard:=LH3_cnt_guard+1; // LH3 v5 С0-1"
+                                        Print #f2, "  if " & L1_Live("ISTO_p[" & CStr(n) & "]") & " then begin"
+                                        If L1_Simple(nm) Then Print #f2, "    " & nm & ":=ISTO_p[" & CStr(n) & "];"
+                                        Print #f2, "  end else begin"
+                                        If L1_Simple(nm) Then Print #f2, "    " & nm & ":=" & gv & ";"
+                                        Print #f2, "  end;"
+                                        Print #f2, "  kerr:= -797;"
+                                        Print #f2, "  if (LH3_DBG >= 1) and (Not LH3_frzT[" & CStr(n) & "]) then begin"
+                                        Print #f2, "    Log(' LH3 freeze: узел #" & CStr(n) & " - " & nm & " NaN/бред - зеркало НЕ обновлено');"
+                                        Print #f2, "    LH3_frzT[" & CStr(n) & "] := true;"
+                                        Print #f2, "  end;"
+                                        Print #f2, "end else if " & L1_RngBad(nm) & " then begin"
+                                        Print #f2, "  " & L1_Rec("NaN_t[" & CStr(n) & "]", "диапазон: " & nm, n, 4)
+                                        Print #f2, "  LH3_cnt_guard:=LH3_cnt_guard+1; // LH3 v5 С0-1"
+                                        Print #f2, "  if " & L1_Live("ISTO_p[" & CStr(n) & "]") & " then begin"
+                                        If L1_Simple(nm) Then Print #f2, "    " & nm & ":=ISTO_p[" & CStr(n) & "];"
+                                        Print #f2, "  end else begin"
+                                        If L1_Simple(nm) Then Print #f2, "    " & nm & ":=" & gv & ";"
+                                        Print #f2, "  end;"
+                                        Print #f2, "  kerr:= -798;"
+                                        Print #f2, "  if (LH3_DBG >= 1) and (Not LH3_frzT[" & CStr(n) & "]) then begin"
+                                        Print #f2, "    Log(' LH3 freeze: узел #" & CStr(n) & " - " & nm & " вне диапазона - зеркало НЕ обновлено');"
+                                        Print #f2, "    LH3_frzT[" & CStr(n) & "] := true;"
+                                        Print #f2, "  end;"
+                                        Print #f2, "end else LH3_frzT[" & CStr(n) & "] := false; // Ф52: значение вернулось - сброс флага"
+                                    Else
+                                        Print #f2, pl
+                                    End If
+                                ElseIf (Not hDone) And InStr(pl, "У И: n=") > 0 And InStr(pl, "Б У И") = 0 Then
+                                    Print #f2, pl
+                                    Print #f2, L1_Scan4(SZ, nEdges)
+                                    hDone = True
+                                Else
+                                    ' === v4 блочные патчи _0 (по якорям; только файл _0) ===
+                                    If (Not fn Like "*_0_LH3.txt") Then GoTo Out4
+                                    ' С0-3 Psat-кэш: якорь "for i := 1 to chK do" + "y1 := Ln(Tk1[i] + 273);"
+                                    If s = "for i := 1 to chK do" And ix + 1 <= nLines And L4_M(Trim(lines(ix + 1)), "^y1 := Ln\(Tk1\[i\] \+ 273\);") And _
+                                       L4_M(Trim(lines(ix + 13)), "^Pi\[i\] := Exp\(\(Ln\(fT \+ 273\.15\) - BB\) / AA\);") Then
+                                        Print #f2, "// LH3 v4 С0-3: кэш AA/BB (константы фита, не зависят от T) - вычисляются один раз"
+                                        Print #f2, "if (Not LH3_PsReady) then begin"
+                                        Print #f2, "  " & s
+                                        Print #f2, "  begin"
+                                        For kx = 1 To 13
+                                            Print #f2, "    " & Trim(lines(ix + kx))
+                                        Next kx
+                                        Print #f2, "    if (Abs(AA02) < 1e-12) then AA02 := 1e-12; // LH3 v4: защита различимости точек"
+                                        Print #f2, "    AA_oi[i] := AA01 / AA02;"
+                                        Print #f2, "    BB_oi[i] := (y1 + y2 + y3 - AA_oi[i] * (x1 + x2 + x3)) / 3;"
+                                        Print #f2, "  end;"
+                                        Print #f2, "  LH3_PsReady := true;"
+                                        Print #f2, "end;"
+                                        Print #f2, "for i := 1 to chK do"
+                                        Print #f2, "begin"
+                                        Print #f2, "  Pi[i] := Exp((Ln(fT + 273.15) - BB_oi[i]) / AA_oi[i]);"
+                                        Print #f2, "  if Pi[i] < 0.001 then Pi[i] := 0.001;"
+                                        Print #f2, "end;"
+                                        nPSC = nPSC + 1: dd = ddA: ix = ix + 15: GoTo IXDONE   ' LH3 v4 FIX
+                                    ' OI_MODE=1: Ньютон по Рашфорду-Райсу
+                                    ElseIf s = "kmin := 10000000000000; kerr:=-3;" And L4_M(Trim(lines(ix + 32)), "^eM := eMM; eG:= eMM; kerr:=-4;") Then
+                                        Print #f2, "// LH3 v4 OI_MODE=1: монотонный Ньютон/бисекция по функции Рашфорда-Райса"
+                                        Print #f2, "eMM := 0; eM := 0; kerr:=-3;"
+                                        Print #f2, "LH3_oKm := -1e9; LH3_oKn := 1e9;"
+                                        Print #f2, "for j := 1 to chK do"
+                                        Print #f2, "begin"
+                                        Print #f2, "  LH3_oK := Pi[j] / (fP + e27);"
+                                        Print #f2, "  if LH3_oK > LH3_oKm then LH3_oKm := LH3_oK;"
+                                        Print #f2, "  if LH3_oK < LH3_oKn then LH3_oKn := LH3_oK;"
+                                        Print #f2, "end;"
+                                        Print #f2, "if (LH3_oKm <= 1) then eMM := 0            // LH3 v4: F(0)<=0 - недогретая жидкость"
+                                        Print #f2, "else if (LH3_oKn >= 1) then eMM := 1        // LH3 v4: F(1)>=0 - перегретый пар"
+                                        Print #f2, "else begin"
+                                        Print #f2, "  LH3_oLo := 0; LH3_oHi := 1;"
+                                        Print #f2, "  for LH3_oIt := 1 to 60 do"
+                                        Print #f2, "  begin"
+                                        Print #f2, "    eM := (LH3_oLo + LH3_oHi) / 2;"
+                                        Print #f2, "    LH3_oFL := 0;"
+                                        Print #f2, "    for j := 1 to chK do"
+                                        Print #f2, "    begin"
+                                        Print #f2, "      LH3_oK := Pi[j] / (fP + e27);"
+                                        Print #f2, "      LH3_oDen := 1 + eM * (LH3_oK - 1);"
+                                        Print #f2, "      LH3_oFL := LH3_oFL + z[j] * (LH3_oK - 1) / LH3_oDen;"
+                                        Print #f2, "    end;"
+                                        Print #f2, "    if (Abs(LH3_oFL) < 1e-12) then break;"
+                                        Print #f2, "    if (LH3_oFL > 0) then LH3_oLo := eM else LH3_oHi := eM;"
+                                        Print #f2, "  end;"
+                                        Print #f2, "  eMM := (LH3_oLo + LH3_oHi) / 2;"
+                                        Print #f2, "  if (Abs(LH3_oFL) > 1e-6) then LH3_cnt_OIfail := LH3_cnt_OIfail + 1;"
+                                        Print #f2, "end;"
+                                        Print #f2, "if eMM > 0.999999 then eMM := 0.99999999;"
+                                        Print #f2, "if eMM < 1-0.9999999  then eMM := 1-0.99999999;"
+                                        Print #f2, "eM := eMM; eG:= eMM; kerr:=-4;"
+                                        nOIM = nOIM + 1: dd = ddA: ix = ix + 33: GoTo IXDONE   ' LH3 v4 FIX
+                                    ' OI_NORMFIX: нормировка без доборов
+                                    ElseIf s = "if (sx<1) then x[6]:=x[6]+(1-sx);" And L4_M(Trim(lines(ix + 3)), "^end; kerr:=-5;$") Then
+                                        Print #f2, "// LH3 v4 OI_NORMFIX: доборы убраны, нормировка на текущую сумму"
+                                        Print #f2, "for j := 1 to chK do"
+                                        Print #f2, "begin"
+                                        Print #f2, "  x[j] := x[j]/sx;"
+                                        Print #f2, "  y[j] := y[j]/sy;"
+                                        Print #f2, "end; kerr:=-5;"
+                                        Print #f2, "if (Abs(1-sx)>1e-6) or (Abs(1-sy)>1e-6) then LH3_cnt_OIfail:=LH3_cnt_OIfail+1;"
+                                        nNORM = nNORM + 1: dd = ddA: ix = ix + 5: GoTo IXDONE   ' LH3 v4 FIX
+                                    ' OI_EG_FIX: детерминированная beta_mass
+                                    ElseIf s = "for j := 1 to chK do" And ix + 1 <= nLines And L4_M(Trim(lines(ix + 1)), "^xG\[j\] := x\[j\] \* M\[j\] / sx;") And _
+                                       L4_M(Trim(lines(ix + 4)), "^if \(yG\[j\] - xG\[j\] > 0\) then") Then
+                                        Print #f2, s
+                                        Print #f2, "begin"
+                                        Print #f2, "  xG[j] := x[j] * M[j] / sx;"
+                                        Print #f2, "  yG[j] := y[j] * M[j] / sy;"
+                                        Print #f2, "end; kerr:=-6;"
+                                        Print #f2, "// LH3 v4 OI_EG_FIX: детерминированная beta_mass вместо рычага по последнему компоненту"
+                                        Print #f2, "eG := eMM * sy / (eMM * sy + (1 - eMM) * sx + e27);"
+                                        Print #f2, "eMM:= eG; kerr:=-7;"
+                                        nEGFIX = nEGFIX + 1: dd = ddA: ix = ix + 10: GoTo IXDONE   ' LH3 v4 FIX
+                                    ElseIf L4_M(s, "^roI := 1 / sx \* \(1 - eMM\) \+ 1 / sz \* eMM;$") Then
+                                        Print #f2, "roI := 1 / rs * (1 - eMM) + 1 / sz * eMM; // LH3 v4 OI_ROI_RS: T-корректированная плотность"
+                                        nROI = nROI + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                    Else
+                                    ' === v4 A11: конец ОИ-петли -> пересчёт фаз ===
+                                    If curLoopO And L4_M(s, "^end;?$") And ddA = curLoopLvl And Len(spTxt) > 0 And InStr(spTxt, "XX0[14]:=XX0[12]/(XX0[13]+e27);") > 0 Then
+                                        Print #f2, "// LH3 v4 A11: финальный пересчёт фазовых расходов по итоговому aa2"
+                                        For Each tpv In Split(Mid(spTxt, 2), "|")
+                                            If Len(tpv) > 0 Then Print #f2, tpv
+                                        Next tpv
+                                        nA11 = nA11 + 1: curLoopO = False: spActive = False: spTxt = ""
+                                        dd = ddA: ix = ix + 1
+                                    ElseIf (Not fn Like "*_0.txt") Then
+                                        GoTo Out4
+                                    ' === v4 блочные патчи _0 (продолжение) ===
+                                    ' SHC_FIXW: вода_full пишет цели KS
+                                    If s = "KG_r[NOMist, i]:= ISTO_ieg[NOMist];" And ix + 1 <= nLines And L4_M(Trim(lines(ix + 1)), "^KL_r\[NOMist, i\]:= \(1 - ISTO_ieg\[NOMist\]\)\*\(1-ULc_r\[NOMist,6\]\);") Then
+                                        Print #f2, "KS_r[1, i]:= ISTO_ieg[NOMist]; // LH3 v4 SHC_FIXW: цель, не готовая доля"
+                                        Print #f2, "KS_r[2, i]:= (1 - ISTO_ieg[NOMist])*(1-ULc_r[NOMist,6]);"
+                                        Print #f2, "KS_r[3, i]:= (1 - ISTO_ieg[NOMist]) * (ULc_r[NOMist, 6]);"
+                                        nSHCW = nSHCW + 1: dd = ddA: ix = ix + 3: GoTo IXDONE   ' LH3 v4 FIX
+                                    ' SHC_NSCR: локальные скрачи вместо XX0[7..9]
+                                    ElseIf s = "XX0[7]:=ABS(LS_r[NOMist, i]-L_summ); if (XX0[7]>12) then XX0[7]:=12;" And ix + 5 <= nLines Then
+                                        Print #f2, "XX07_l:=ABS(LS_r[NOMist, i]-L_summ); if (XX07_l>12) then XX07_l:=12; // LH3 v4 SHC_NSCR"
+                                        Print #f2, "XX09_l:=ABS(LS_r[NOMist, i]-L_water); if (XX09_l>12) then XX09_l:=12;"
+                                        Print #f2, "XX08_l:=730/Power(2.72,5.5*XX07_l)+350/Power(2.72,6*XX09_l);"
+                                        Print #f2, "KG_r[NOMist, i]:=  Abs(XX08_l*KG_r[NOMist, i] +1*KS_r[1, i])/(XX08_l+1);"
+                                        Print #f2, "KL_r[NOMist, i]:=  Abs(XX08_l*KL_r[NOMist, i] +1*KS_r[2, i])/(XX08_l+1);"
+                                        Print #f2, "KW_r[NOMist, i]:= Abs(XX08_l*KW_r[NOMist, i] +1*KS_r[3, i])/(XX08_l+1);"
+                                        nSHCN = nSHCN + 1: dd = ddA: ix = ix + 6: GoTo IXDONE   ' LH3 v4 FIX
+                                    ' LRC_NOSWAP: знак-своп убран
+                                    ElseIf L4_M(s, "^if \(NOMist>NOMsv\) then dPL_r\[NOMist,NOMshist\]:=e27-dPL_r\[NOMsv,NOMshsv\];") Then
+                                        Print #f2, "// LH3 v4 LRC_NOSWAP: знак-своп убран (зеркало пересчитывается симметрично)"
+                                        nNOSWAP = nNOSWAP + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                                    ' LRC_ROSMO: разрыв на 0.2 убран
+                                    ElseIf L4_M(s, "^if \(RoLine>0\.2\) then RoLine:= \(RoLine\+1\)/2;$") Then
+                                        Print #f2, "// LH3 v4 LRC_ROSMO: разрыв на 0.2 убран (фактическая плотность линии)"
+                                        nROSMO = nROSMO + 1: dd = ddA: ix = ix + 2: GoTo IXDONE   ' LH3 v4 FIX
+                                    ' FR_EPS: регуляризация мёртвой зоны
+                                    ElseIf L4_M(s, "^aa3:=K_fff\*U_ri\[NOMist, NOMshist\]\*Power\(Abs\(P_ist\+dPL_r\[NOMist, NOMshist\]-P_sv\),0\.5\);") Then
+                                        Print #f2, "aa3:=K_fff*U_ri[NOMist, NOMshist]*(P_ist+dPL_r[NOMist, NOMshist]-P_sv)/Sqrt(Abs(P_ist+dPL_r[NOMist, NOMshist]-P_sv)+1e-4); // LH3 v4 FR_EPS"
+                                        nFREPS = nFREPS + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                                    ElseIf L4_M(s, "^if Power\(Abs\(P_ist\+dPL_r\[NOMist, NOMshist\]-P_sv\),0\.5\)< 0\.00001 then aa3:=0;$") Then
+                                        Print #f2, "// LH3 v4 FR_EPS: мёртвая зона снята (гладкая форма)"
+                                        nFREPS = nFREPS + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                                    ' STOR_FIX4: длина L и площадь pi c^2 /4
+                                    ElseIf L4_M(s, "^XX0\[1\]:= V_ss / 3\.14159 /\(e27\+ ISTO_H\[nomber_i\]\) / \(e27\+ISTO_H\[nomber_i\]\);") Then
+                                        Print #f2, "XX0[1]:= 4 * V_ss / 3.14159 /(e27+ ISTO_H[nomber_i]) / (e27+ISTO_H[nomber_i]); // LH3 v4 STOR_FIX4: длина L=4V/(pi D^2)"
+                                        nSTOR4 = nSTOR4 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                                    ElseIf L4_M(s, "^RS_l\[nomber_i\]:= 3\.14159\*XX0\[2\] \* XX0\[2\]\*roL \* 36 \* MAIN_c/1 \* ISTO_H\[nomber_i\]\+1;") Then
+                                        Print #f2, "RS_l[nomber_i]:= 3.14159*XX0[2]*XX0[2]/4*roL * 36 * MAIN_c/1 * ISTO_H[nomber_i]+1; // LH3 v4 STOR_FIX4: площадь pi c^2 /4"
+                                        nSTOR4 = nSTOR4 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                                    ElseIf L4_M(s, "^RS_w\[nomber_i\]:= 3\.14159\*XX0\[2\] \* XX0\[2\] \* roW\*36\*MAIN_c/1\* ISTO_H\[nomber_i\]\+1;") Then
+                                        Print #f2, "RS_w[nomber_i]:= 3.14159*XX0[2]*XX0[2]/4* roW*36*MAIN_c/1* ISTO_H[nomber_i]+1; // LH3 v4 STOR_FIX4"
+                                        nSTOR4 = nSTOR4 + 1: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                                    ' С0-1: счётчик вызовов OI
+                                    ElseIf L4_M(s, "^procedure [A-Za-z0-9_]+\.OI\(u1, u2, u3, u4, u5, u6, Tfact, Pfact: Double\);$") Then   ' LH3 v25 Ф34: класс из входа
+                                        Print #f2, s
+                                        oiProc = True: dd = ddA: ix = ix + 1: GoTo IXDONE   ' LH3 v4 FIX
+                                    Else
+Out4:
+                                        If ((Left(s, 4) = "XX0:" And InStr(s, "array") > 0 And dXX0) Or (Left(s, 4) = "ZZ0:" And InStr(s, "array") > 0 And dZZ0) Or (Left(s, 8) = "ISTO_p:" And InStr(s, "array") > 0 And dISTO)) Then
+                                            Debug.Print "!!! LH3 v4 DUB: повторная декларация @ вход-строка " & CStr(ix) & ": " & Left(pl, 60)
+                                            L1_Log "DUB-DEC @" & CStr(ix) & ": " & Left(pl, 100)
+                                        ElseIf L1_CyrOut(pl) And InStr(pl, "LH3") = 0 Then
+                                            Print #f2, "// " & pl: totC = totC + 1
+                                        Else
+                                            Print #f2, pl
+                                        End If
+                                    End If
+                                End If
+                            End If
+                            dd = ddA: ix = ix + 1
+                        End If
+                    End If
+                End If
+            End If
+        End If ' LH3 v4: закрывает If g48 = 1 (A2-гейт, v3)
+    End If ' LH3 v4: закрывает If oiProc / Len(s) / noTail
+IXDONE:                       ' LH3 v4: принудительная страховка от застоёв - см. блок перед Loop
+            If ix = ixPrev Then
+                nStuck = nStuck + 1
+                Debug.Print "!!! ЗАСТОЙ #" & CStr(nStuck) & ": строка " & CStr(ix) & " не продвинулась: [" & Left(s, 90) & "]"
+                L1_Log "ЗАСТОЙ " & CStr(nStuck) & " ix=" & CStr(ix) & " строка: " & Left(s, 120)
+                Print #f2, pl   ' строка всё же печатается как есть
+                ix = ix + 1
+            End If
+        Loop
+        Close #f2
+        Debug.Print "LH3 v4: " & outn & " готов за " & Format(Timer - t0, "0.0") & " с"
+        ' LH3 v15 (Ф20): a/b-разбиение ПОСЛЕ вставок - на выходном файле (механика LH2 v37)
+        If Not noTail Then
+            totSp = totSp + L2_Split(pth & outn, thr, totCh, splitsD, mainOut)
+            LH3_StopCheck pth, outn   ' Ф55
+            totNoParam = totNoParam + gNoParamSkipped
+        End If
+NextFile:
+    Next fi
+    If LH3_StopFlag Then   ' СТОП-инвариант: комплект НЕ выпускается
+        MsgBox "СТОП: тело процедуры выше порога " & CStr(LH3_SAFE_LINE) & " строк." & vbCrLf & _
+               "Нарушений: " & CStr(LH3_StopCnt) & vbCrLf & LH3_StopMsg & _
+               IIf(LH3_StopCnt > 10, "  ... и ещё " & CStr(LH3_StopCnt - 10), "") & vbCrLf & _
+               "Комплект НЕ выпущен. Резка не довела тела до порога.", vbCritical, "LH3 v37 СТОП"
+        Application.StatusBar = False
+        On Error Resume Next: Unload ufProgress: On Error GoTo 0
+        Exit Sub
+    End If
+
+        ' LH3 v15 (Ф20): диспетчер main.Work - пары a/b с регистрацией (механика LH2 v37)
+    PrPro 95, "Диспетчер Work..."
+    If Len(mainOut) > 0 Then
+        totD = L2_Disp(mainOut, splitsD)
+        LH3_StopCheck pth, mainOut   ' Ф62
+        If LH3_StopFlag Then   ' Ф62: СТОП-инвариант и ПОСЛЕ диспетчера (main.Work растёт от блоков L2_Disp)
+            MsgBox "СТОП: тело процедуры выше порога " & CStr(LH3_SAFE_LINE) & " строк (после диспетчера)." & vbCrLf & _
+               "Нарушений: " & CStr(LH3_StopCnt) & vbCrLf & LH3_StopMsg & _
+               "Комплект НЕ выпущен.", vbCritical, "LH3 v37 СТОП (после диспетчера)"
+            Application.StatusBar = False
+            On Error Resume Next: Unload ufProgress: On Error GoTo 0
+            Exit Sub
+        End If
+    End If
+Application.StatusBar = False: Application.DisplayStatusBar = dSB
+    PrPro 100, "Готово"
+    On Error Resume Next: Unload ufProgress: On Error GoTo 0   ' LH3 v4: закрыть форму прогресса
+    L1_Log "ГОТОВО: застрявших строк (принудительный инкремент): " & CStr(nStuck)
+    Debug.Print "LH3 v4: готово."
+    MsgBox "LH3 v15: готово (стражи v21 + ПОСТ-ПРАВКИ A1/A2 + весь перечень м2.5 + Ф19/Ф20)." & vbCrLf & _
+           "Узлов (chi) = " & CStr(chi) & ", размер массива = " & CStr(SZ) & _
+           IIf(csh1, ", стиль C#", ", стиль pas") & vbCrLf & _
+           "A1 (окно/клампа): " & CStr(nA1) & ", A2 (ttyr=48): " & CStr(nA2) & ", +e27 в K_v: " & CStr(nE27) & vbCrLf & _
+           "Стражей входа: " & CStr(totB) & ", хвостов: " & CStr(totH) & ", Ф4-бред-декл: " & CStr(totC) & vbCrLf & "Застрявших (принудительно): " & CStr(nStuck) & vbCrLf & _
+           "Т-2/Т-1 (канон ребра): " & CStr(nT2) & ", Т-3 (гашение U_ri): " & CStr(nT3) & vbCrLf & _
+           "A6 (кламп подушки): " & CStr(nA6) & ", F12 (dT/T): " & CStr(nF12) & " (пропусков: " & CStr(nF12m) & ")" & vbCrLf & _
+           "B14: " & CStr(nB14) & ", B11: " & CStr(nB11) & ", B12: " & CStr(nB12) & ", B5: " & CStr(nB5) & ", A9 (перекладки убраны): " & CStr(nA9) & vbCrLf & _
+           "F11 (якоробиан): " & CStr(nF11) & ", 24К-счётчики: " & CStr(nC24) & ", A11 (пересчёт фаз): " & CStr(nA11) & vbCrLf & _
+           "B8: " & CStr(nB8M) & ", B15: " & CStr(nB15) & "/" & CStr(nB15b) & ", B2P: " & CStr(nB2P) & ", KFP: " & CStr(nKFP) & ", Power-фиксы: " & CStr(nPW) & ", PH: " & CStr(nPH) & ", TST: " & CStr(nTST) & ", SKL: " & CStr(nSKL) & ", CI: " & CStr(nCI) & vbCrLf & _
+           "_0-блоки: Psat=" & CStr(nPSC) & " OI_MODE=" & CStr(nOIM) & " NORM=" & CStr(nNORM) & " EGFIX=" & CStr(nEGFIX) & " ROI=" & CStr(nROI) & vbCrLf & _
+           "SHCW=" & CStr(nSHCW) & " SHCN=" & CStr(nSHCN) & " NOSWAP=" & CStr(nNOSWAP) & " ROSMO=" & CStr(nROSMO) & " STOR4=" & CStr(nSTOR4) & " FREPS=" & CStr(nFREPS) & vbCrLf & _
+           "Рёбер FR_C (Т-2/С0-5): " & CStr(nEdges) & ", Tprev-полей: " & CStr(Tprev.Count) & vbCrLf & _
+           "Разрезание (Ф20/Ф32): процедур разбито " & CStr(totSp) & ", частей " & CStr(totCh) & ", блоков в диспетчере " & CStr(totD) & ", макс. часть " & CStr(gMaxPart) & " строк (лимит ~9000), в-блочных кусков (Ф32а) " & CStr(gMonoPieces) & ", блоков (Ф32) " & CStr(gMonoBlocks) & "." & vbCrLf & _
+           "Процедур с параметрами пропущено (не режем, Ф14): " & CStr(totNoParam) & ". Дублей деклараций пропущено (Ф19): " & CStr(nDub) & vbCrLf & _
+           "Членов якобиана С4-1 восстановлено (Ф21): " & CStr(nCImem) & ", пропущено: " & CStr(nCIfail) & " (0 = обе группы распознаны)." & vbCrLf & _
+                      "С1а-1 v26 (Ф36.1): Power оставлено=" & CStr(L1_cnt_POWFIX) & ", Exp замен=" & CStr(L1_cnt_EXP2) & vbCrLf & _
+                      "Файлы: *_LH3.txt (исходные м2 не тронуты). База: пайплайн tools/lh3_v4_pipeline.py (FPC 3.2.2 проверен).", vbInformation, "LH3 v37"
+    PrPro 100, "Готово!"
+    On Error Resume Next: Unload ufProgress: On Error GoTo 0   ' Ф43 v30: форма не должна висеть
+End Sub
+
+' --- регулярная замена (VBScript.RegExp, v4) ---
+Private Function L4_Re(ByVal s As String, ByVal pat As String, ByVal rep As String, ByVal nCnt As Long) As String
+    Static re As Object, mc As Object
+    L4_Re = s
+    If re Is Nothing Then Set re = CreateObject("VBScript.RegExp")   ' v4: объект кэшируется - иначе CreateObject на каждый вызов
+    If re Is Nothing Then
+        L1_Log "L4_Re ERROR: объект RegExp недоступен pat=" & Left(pat, 120)   ' LH3 v19 Ф30
+        Exit Function
+    End If
+    On Error Resume Next
+    Err.Clear
+    re.Global = True: re.MultiLine = True: re.IgnoreCase = False
+    re.Pattern = pat
+    Set mc = re.Execute(s)
+    On Error GoTo 0
+    If Err.Number <> 0 Or mc Is Nothing Then
+        ' LH3 v19 Ф30: паттерн не принят - лог и возврат исходной строки
+        L1_Log "L4_Re ERROR err=" & CStr(Err.Number) & " " & Err.Description & " pat=" & Left(pat, 120)
+        Err.Clear
+        Exit Function
+    End If
+    nCnt = mc.Count
+    If nCnt > 0 Then L4_Re = re.Replace(s, rep) Else L4_Re = s
+End Function
+
+' --- проверка совпадения и подстрока по группе ---
+Private Function L4_M(ByVal s As String, ByVal pat As String) As Boolean
+    Static re As Object
+    L4_M = False
+    If re Is Nothing Then Set re = CreateObject("VBScript.RegExp")   ' v4: объект кэшируется
+    If re Is Nothing Then
+        L1_Log "L4_M ERROR: объект RegExp недоступен pat=" & Left(pat, 120)   ' LH3 v19 Ф30
+        Exit Function
+    End If
+    On Error Resume Next
+    Err.Clear
+    re.Global = False: re.IgnoreCase = False
+    re.Pattern = pat
+    Dim bM As Boolean
+    bM = re.Test(s)
+    On Error GoTo 0
+    If Err.Number <> 0 Then
+        ' LH3 v19 Ф30: паттерн не принят - лог и деградация к False
+        L1_Log "L4_M ERROR err=" & CStr(Err.Number) & " " & Err.Description & " pat=" & Left(pat, 120)
+        Err.Clear
+        Exit Function
+    End If
+    L4_M = bM
+End Function
+Private Function L4_SM(ByVal s As String, ByVal pat As String, ByVal idx As Long) As String
+    Static re As Object, mc As Object
+    If re Is Nothing Then Set re = CreateObject("VBScript.RegExp")   ' v4: объект кэшируется
+    re.Global = False: re.IgnoreCase = False
+    On Error Resume Next
+    Err.Clear
+    re.Pattern = pat
+    Set mc = re.Execute(s)
+    On Error GoTo 0
+    If Err.Number <> 0 Or mc Is Nothing Then
+        ' LH3 v18 Ф27: паттерн (или объект) не принят - фиксируем в лог и деградируем к ""
+        L1_Log "L4_SM ERROR err=" & CStr(Err.Number) & " " & Err.Description & " pat=" & Left(pat, 120)
+        Err.Clear
+        L4_SM = "": Exit Function
+    End If
+    If mc.Count > 0 Then
+        If mc(0).SubMatches.Count > idx Then
+            L4_SM = mc(0).SubMatches(idx)
+        Else
+            L4_SM = ""   ' LH3 v12: группы нет - пусто вместо Err 5
+        End If
+    Else
+        L4_SM = ""
+    End If
+End Function
+
+' --- блок деклараций v4 (конст-блок SW + поля v4 + Tprev-поля) ---
+Private Function L1_Decls4(ByVal SZ As Long, ByVal tprevList As String, ByVal nEdges As Long) As String
+    Dim r As String
+    r = "NaN_t: array[1.." & CStr(SZ) & "] of integer; // LH3 v3: номер события по хвосту ISTO_p (0=чист)" & vbCrLf
+    r = r & "NaN_in: array[1.." & CStr(SZ) & "] of integer; // LH3 v3: номер события на входе узла (0=чист)" & vbCrLf
+    r = r & "NaN_seq: integer; // LH3 v3: порядковый номер NaN/бред-события (первый = 1)" & vbCrLf
+    r = r & "NaN_call, NaN_cnt, NaN_i: integer; // LH3 v3: счётчики скана" & vbCrLf
+    r = r & "NaN_nm: array[1..1000] of string; // LH3 v3: имена виновников (по номеру события)" & vbCrLf
+    r = r & "NaN_uz: array[1..1000] of integer; // LH3 v3: узел события" & vbCrLf
+    r = r & "NaN_tp: array[1..1000] of integer; // LH3 v3: тип: 1=вход 2=хвост" & vbCrLf
+    r = r & "NaN_rng: integer; // LH3 v4: число зеркал ISTO_p вне диапазона LIM_P" & vbCrLf
+    r = r & "NaN_str: string; // LH3 v3" & vbCrLf
+    r = r & "LH3_frzI: array[1.." & CStr(SZ) & "] of boolean; // Ф52: вход-страж уже сообщён (сброс при восстановлении)" & vbCrLf
+    r = r & "LH3_frzT: array[1.." & CStr(SZ) & "] of boolean; // Ф52: хвост-страж уже сообщён" & vbCrLf
+    r = r & "// LH3 v4: конст-блок, поля и таблицы" & vbCrLf
+    r = r & "const" & vbCrLf
+    r = r & "LH3_F11 = 1; LH3_A6 = 1; LH3_F12 = 1; LH3_B5 = 1; LH3_A9 = 1; LH3_A11 = 1; LH3_OIM = 1; LH3_EGFIX = 1; LH3_NORM = 1; LH3_ROI = 1;" & vbCrLf
+    r = r & "LH3_SHCW = 1; LH3_SHCN = 1; LH3_NOSWAP = 1; LH3_ROSMO = 1; LH3_STOR4 = 1; LH3_T2 = 0; LH3_T3 = 1; LH3_B8 = 1; LH3_B11 = 1; LH3_B12 = 1; LH3_B14 = 1; LH3_B15 = 1; LH3_FREPS = 1; LH3_PH = 1;" & vbCrLf
+    r = r & "LH3_CNT = 1; LH3_RNG = 0; LH3_SYM = 1; LH3_B2P = 0; LH3_MARR = 1; LH3_PSC = 1; LH3_KFP = 1; LH3_TST = 1; LH3_SKL = 1; LH3_LNG2E = 0.9999698915; // LH3 v16 Ф22" & vbCrLf
+    r = r & "public" & vbCrLf
+    r = r & "LH3_DBG: integer; // Ф53-в: режим выдач: 0 - молчание, 1 - включить всё (равнозначно ключам HEALTH/HEALTH2 в LOG0)" & vbCrLf
+    r = r & "W_damp: Double; // LH3 v4 F11" & vbCrLf
+    r = r & "LH3_cnt_OI: integer; LH3_cnt_24K: integer; LH3_cnt_OIfail: integer; LH3_cnt_clamp: integer; LH3_cnt_guard: integer; // LH3 v4 С0-1" & vbCrLf
+    r = r & "LH3_avail, LH3_sc: Double; // LH3 v4 B5" & vbCrLf
+    r = r & "LH3_symmax: Double; LH3_eReady: Boolean; LH3_eMax: integer; // LH3 v4 С0-5" & vbCrLf
+    r = r & "LH3_eN: array[1.." & CStr(IIf(nEdges > 0, nEdges, 1)) & "] of integer;" & vbCrLf
+    r = r & "LH3_eS: array[1.." & CStr(IIf(nEdges > 0, nEdges, 1)) & "] of integer;" & vbCrLf
+    r = r & "LH3_eNS: array[1.." & CStr(IIf(nEdges > 0, nEdges, 1)) & "] of integer;" & vbCrLf
+    r = r & "LH3_Ci: Double; LH3_R: Double; LH3_J: Double; // LH3 v10 С4-4" & vbCrLf
+    r = r & "LH3_eSS: array[1.." & CStr(IIf(nEdges > 0, nEdges, 1)) & "] of integer;" & vbCrLf
+    r = r & "AA_oi: array[1..100] of double; BB_oi: array[1..100] of double; LH3_PsReady: Boolean; // LH3 v4 С0-3" & vbCrLf
+    Dim p As Variant
+    For Each p In Split(tprevList, "|")
+        If Len(p) > 0 Then r = r & "LH3_Tprev_" & Mid(p, 3) & ": Double; // LH3 v16 Ф24: без префикса Tc (как в использовании)" & vbCrLf
+    Next p
+    L1_Decls4 = r
+End Function
+
+' --- HEALTH-скан v4 (после "У И: n=") + счётчики + симметрия рёбер ---
+Private Function L1_Scan4(ByVal SZ As Long, ByVal nEdges As Long) As String
+    Dim r As String
+    r = "LH3_DBG := " & CStr(LH3_DBG_OUT) & "; // Ф53-в: базовый режим (0 - молчание, 1 - всё)" & vbCrLf
+        If LH3_KEYLOG = 1 Then
+            r = r & "// Ф53-б: ключ лога HEALTH/HEALTH2 в LOG0 открывает вывод статистики (владелец 26.11)" & vbCrLf
+            r = r & "if (LOG0[1]='HEALTH') or (LOG0[1]='HEALTH2') or (LOG0[2]='HEALTH') or (LOG0[2]='HEALTH2') or (LOG0[3]='HEALTH') or (LOG0[3]='HEALTH2') or (LOG0[4]='HEALTH') or (LOG0[4]='HEALTH2') or (LOG0[5]='HEALTH') or (LOG0[5]='HEALTH2') or (LOG0[6]='HEALTH') or (LOG0[6]='HEALTH2') or (LOG0[7]='HEALTH') or (LOG0[7]='HEALTH2') or (LOG0[8]='HEALTH') or (LOG0[8]='HEALTH2') or (LOG0[9]='HEALTH') or (LOG0[9]='HEALTH2') or (LOG0[10]='HEALTH') or (LOG0[10]='HEALTH2') then LH3_DBG := 1;" & vbCrLf
+        End If
+    r = r & "// LH1-NaN-scan start (v21, только давления)" & vbCrLf
+    r = r & "if (LH3_DBG >= 1) and (NaN_seq>0) then begin" & vbCrLf
+    r = r & "  Log(' LH1 NaN-виновники (давления): всего='+cstrf(NaN_seq,0)+' - NaN/бред/диапазон гашены last-good/пресетом');  kerr:= -790;" & vbCrLf
+    r = r & "  NaN_i:=1;" & vbCrLf
+    r = r & "  while (NaN_i<=NaN_seq) do begin" & vbCrLf
+    r = r & "    if (NaN_i<31) then begin" & vbCrLf
+    r = r & "      NaN_str:='';" & vbCrLf
+    r = r & "      if (NaN_tp[NaN_i]=1) then NaN_str:='вход';" & vbCrLf
+    r = r & "      if (NaN_tp[NaN_i]=2) then NaN_str:='хвост';" & vbCrLf
+    r = r & "      if (NaN_tp[NaN_i]=3) then NaN_str:='вход (диапазон)';" & vbCrLf
+    r = r & "      if (NaN_tp[NaN_i]=4) then NaN_str:='хвост (диапазон)';" & vbCrLf
+    r = r & "      if (LH3_DBG >= 1) and (NaN_uz[NaN_i]>0) then begin Log(' LH1 виновник №'+cstrf(NaN_i,0)+': узел #'+cstrf(NaN_uz[NaN_i],0)+' - '+NaN_nm[NaN_i]+' ('+NaN_str+')');  kerr:= -791; end;" & vbCrLf
+    r = r & "      if (LH3_DBG >= 1) and (NaN_uz[NaN_i]=0) then begin Log(' LH1 виновник №'+cstrf(NaN_i,0)+': граница - '+NaN_nm[NaN_i]+' ('+NaN_str+')');  kerr:= -792; end;" & vbCrLf
+    r = r & "    end else begin" & vbCrLf
+    r = r & "      if (LH3_DBG >= 1) and (NaN_i=31) then begin Log(' LH1 ... всего '+cstrf(NaN_seq,0)+' событий - показаны первые 30');  kerr:= -792; end;" & vbCrLf
+    r = r & "    end;" & vbCrLf
+    r = r & "    NaN_i:=NaN_i+1;" & vbCrLf
+    r = r & "  end;" & vbCrLf
+    r = r & "end;" & vbCrLf
+    r = r & "NaN_cnt:=0;  NaN_rng:=0;" & vbCrLf
+    r = r & "NaN_i:=1;" & vbCrLf
+    r = r & "while (NaN_i<=" & CStr(SZ) & ") do begin" & vbCrLf
+    r = r & "  if IsNan(ISTO_p[NaN_i]) or (Abs(ISTO_p[NaN_i])>1e300) then NaN_cnt:=NaN_cnt+1;" & vbCrLf
+    r = r & "  if (LIM_P_max>0) and (ISTO_p[NaN_i]>1e-9) and ((ISTO_p[NaN_i]<LIM_P_min) or (ISTO_p[NaN_i]>LIM_P_max)) then NaN_rng:=NaN_rng+1;" & vbCrLf
+    r = r & "  NaN_i:=NaN_i+1;" & vbCrLf
+    r = r & "end;" & vbCrLf
+r = r & "if (NaN_cnt=0) and (NaN_rng=0) then begin NaN_seq:=0; NaN_i:=1; while (NaN_i<=" & CStr(SZ) & ") do begin NaN_t[NaN_i]:=0; NaN_i:=NaN_i+1; end; end;" & vbCrLf
+    r = r & "if (LH3_DBG >= 1) and (NaN_cnt>0) then begin Log(' LH1 ВНИМАНИЕ: NaN/бред в зеркалах ISTO_p: '+cstrf(NaN_cnt,0)+' (прорвалось мимо стражей)');  kerr:= -793; end;" & vbCrLf
+    r = r & "if (LH3_DBG >= 1) and (NaN_rng>0) then begin Log(' LH1 ВНИМАНИЕ: зеркал ISTO_p вне диапазона LIM_P: '+cstrf(NaN_rng,0)+' (проверьте границы _0i)');  kerr:= -793; end;" & vbCrLf
+    r = r & "if (LH3_DBG >= 1) and (NaN_seq=0) and (NaN_cnt=0) and (NaN_rng=0) then begin Log(' LH1 NaN-скан: чисто - NaN/бред/диапазон не обнаружены (скан #'+cstrf(NaN_call,0)+')');  kerr:= -794; end;" & vbCrLf
+    r = r & "NaN_call:=NaN_call+1;" & vbCrLf
+    r = r & "// LH1-NaN-scan end" & vbCrLf
+    r = r & "// LH3 v4 С0-1: счётчики сходимости/метода" & vbCrLf
+    r = r & "if (LH3_DBG >= 1) then Log(' LH3 С0-1: OI вызовов='+cstrf(LH3_cnt_OI,0)+' 24К-циклов='+cstrf(LH3_cnt_24K,0)+' OIfail='+cstrf(LH3_cnt_OIfail,0)+' clamp='+cstrf(LH3_cnt_clamp,0)+' guard='+cstrf(LH3_cnt_guard,0));  kerr:= -989;" & vbCrLf
+    r = r & "// LH3 v4 С0-5: симметрия рёбер (только консервативная пара)" & vbCrLf
+    r = r & "if (LH3_eReady) then begin" & vbCrLf
+    r = r & "  LH3_symmax:=0;" & vbCrLf
+    r = r & "  NaN_i:=1;" & vbCrLf
+    r = r & "  while (NaN_i<=LH3_eMax) do begin" & vbCrLf
+    r = r & "    if (Abs(Fc_r[LH3_eN[NaN_i],LH3_eS[NaN_i]]+Fc_r[LH3_eNS[NaN_i],LH3_eSS[NaN_i]])>LH3_symmax) then LH3_symmax:=Abs(Fc_r[LH3_eN[NaN_i],LH3_eS[NaN_i]]+Fc_r[LH3_eNS[NaN_i],LH3_eSS[NaN_i]]);" & vbCrLf
+    r = r & "    NaN_i:=NaN_i+1;" & vbCrLf
+    r = r & "  end;" & vbCrLf
+    r = r & "  if (LH3_DBG >= 1) then Log(' LH3 симметрия рёбер: max|Fc_r[i,k]+Fc_r[j,k'']|='+cstrf(LH3_symmax,6));  kerr:= -995;" & vbCrLf
+    r = r & "end;"
+    L1_Scan4 = r
+End Function
+'=====END=====
+
+
+' ============================================================================
+'=====================================================================
+
+
+
